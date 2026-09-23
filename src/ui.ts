@@ -25,6 +25,15 @@ export function provenance(a: Antibody | undefined): string {
   return `learned from "${meta.source.subject}"`;
 }
 
+export function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
+/** Terminal width, or a readable default when output is piped. */
+export function termWidth(): number {
+  return process.stdout.columns || Number(process.env.COLUMNS) || 100;
+}
+
 /** The first sentence of a model-written explanation, capped for one terminal line. */
 export function firstSentence(s: string, max = 140): string {
   const t = (/^[\s\S]*?(?<!\be\.g|\bi\.e|\betc|\bvs)[.;](\s|$)/.exec(s)?.[0] ?? s).replace(/\s+/g, " ").trim().replace(/[.;]$/, "");
@@ -102,10 +111,14 @@ export function printFindings(matches: Match[], antibodies: Antibody[]): void {
   for (const [ruleId, ms] of byRule) {
     const a = antibodies.find((x) => x.doc.id === ruleId);
     const sev = (a?.doc.severity ?? ms[0].severity) === "warning" ? pc.yellow("warning") : pc.red("error");
-    console.log(`\n  ${sev} ${pc.bold(ruleId)}  ${pc.dim(provenance(a))}`);
-    console.log(`  ${ms[0].message}`);
-    for (const m of ms) console.log(`    ${loc(m)}  ${codeLine(m.lines)}${m.fix ? pc.green("  🔧 auto-fix") : ""}`);
+    const room = termWidth() - 4;
+    console.log(`\n  ${sev} ${pc.bold(ruleId)}  ${pc.dim(truncate(provenance(a), Math.max(20, room - ruleId.length - 8)))}`);
+    console.log(`  ${firstSentence(ms[0].message, room)}`);
+    for (const m of ms) {
+      const tag = m.fix ? "  🔧 auto-fix" : "";
+      console.log(`    ${loc(m)}  ${codeLine(m.lines, Math.max(20, room - `${m.file}:${m.line}`.length - tag.length - 4))}${pc.green(tag)}`);
+    }
     const note = a?.doc.note ?? ms[0].note;
-    if (note) console.log(pc.dim(`    ↳ ${firstSentence(note, 160)}`));
+    if (note) console.log(pc.dim(`    ↳ ${firstSentence(note, room - 4)}`));
   }
 }

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "app/payments.py:7 makes a blocking requests.post to an external payments API with no timeout= argument, exactly the pattern that was fixed in shipping.py. There is no session-level timeout, no wrapper, and no guard elsewhere: the call goes straight from the module-level PAYMENTS_URL through requests.post and the response is used immediately (raise_for_status + .json()). If pay.example.com stalls, the calling thread blocks indefinitely. The identical fix applies: add timeout=10 (or similar) to the requests.post call."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"app/payments.py:7 makes a blocking requests.post to an external payments API with no timeout= argument, exactly the pattern that was fixed in shipping.py. There is no session-level timeout, no wrapper, and no guard elsewhere: the call goes straight from the module-level PAYMENTS_URL through requests.post and the response is used immediately (raise_for_status + .json()). If pay.example.com stalls, the calling thread blocks indefinitely. The identical fix applies: add timeout=10 (or similar) to the requests.post call.\"}]}"
+}

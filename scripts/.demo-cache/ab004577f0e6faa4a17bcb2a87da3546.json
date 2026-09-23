@@ -1,0 +1,14 @@
+{
+  "json": {
+    "fix": "requests.$M($$$ARGS, timeout=10)",
+    "generalizable": true,
+    "id": "requests-call-without-timeout",
+    "message": "requests.$M() call has no timeout= argument: it can hang forever if the remote service stalls",
+    "note": "By default `requests` waits indefinitely for a response, so a slow or dead upstream service blocks the worker thread forever. Always pass an explicit `timeout=` (e.g. `timeout=10`) to every requests call.",
+    "reason": "The fix adds the missing `timeout=` argument to a `requests` HTTP call — a syntactically detectable API misuse that recurs anywhere requests is used.",
+    "rule_yaml": "rule:\n  pattern: requests.$M($$$ARGS)\n  kind: call\n  not:\n    has:\n      stopBy: end\n      kind: keyword_argument\n      pattern: timeout=$_\nconstraints:\n  M:\n    regex: \"^(get|post|put|patch|delete|head|options|request)$\"\n",
+    "severity": "warning",
+    "title": "HTTP request without a timeout"
+  },
+  "raw": "{\"fix\":\"requests.$M($$$ARGS, timeout=10)\",\"generalizable\":true,\"id\":\"requests-call-without-timeout\",\"message\":\"requests.$M() call has no timeout= argument: it can hang forever if the remote service stalls\",\"note\":\"By default `requests` waits indefinitely for a response, so a slow or dead upstream service blocks the worker thread forever. Always pass an explicit `timeout=` (e.g. `timeout=10`) to every requests call.\",\"reason\":\"The fix adds the missing `timeout=` argument to a `requests` HTTP call — a syntactically detectable API misuse that recurs anywhere requests is used.\",\"rule_yaml\":\"rule:\\n  pattern: requests.$M($$$ARGS)\\n  kind: call\\n  not:\\n    has:\\n      stopBy: end\\n      kind: keyword_argument\\n      pattern: timeout=$_\\nconstraints:\\n  M:\\n    regex: \\\"^(get|post|put|patch|delete|head|options|request)$\\\"\\n\",\"severity\":\"warning\",\"title\":\"HTTP request without a timeout\"}"
+}

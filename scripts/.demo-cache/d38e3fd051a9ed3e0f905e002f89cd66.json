@@ -1,0 +1,14 @@
+{
+  "json": {
+    "id": "unawaited-db-commit",
+    "title": "Database commit() called without await",
+    "generalizable": true,
+    "reason": "A promise-returning API (db.commit()) is invoked as a bare expression statement, so its completion or rejection is never awaited — a syntactically detectable floating-promise bug that can recur anywhere commit() is called.",
+    "message": "`commit()` is called without `await`: the transaction may fail or settle after the function returns.",
+    "note": "db.commit() returns a promise; calling it as a bare statement lets the enclosing async function return (and the response be sent) before the commit settles, silently dropping writes when it rejects. Prefix it with `await` (or `return` the promise) so failures propagate.",
+    "severity": "error",
+    "rule_yaml": "rule:\n  all:\n    - kind: call_expression\n    - pattern: $DB.commit($$$ARGS)\n    - inside:\n        kind: expression_statement\n",
+    "fix": "await $DB.commit($$$ARGS)"
+  },
+  "raw": "{\"id\":\"unawaited-db-commit\",\"title\":\"Database commit() called without await\",\"generalizable\":true,\"reason\":\"A promise-returning API (db.commit()) is invoked as a bare expression statement, so its completion or rejection is never awaited — a syntactically detectable floating-promise bug that can recur anywhere commit() is called.\",\"message\":\"`commit()` is called without `await`: the transaction may fail or settle after the function returns.\",\"note\":\"db.commit() returns a promise; calling it as a bare statement lets the enclosing async function return (and the response be sent) before the commit settles, silently dropping writes when it rejects. Prefix it with `await` (or `return` the promise) so failures propagate.\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  all:\\n    - kind: call_expression\\n    - pattern: $DB.commit($$$ARGS)\\n    - inside:\\n        kind: expression_statement\\n\",\"fix\":\"await $DB.commit($$$ARGS)\"}"
+}

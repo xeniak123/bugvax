@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": false,
+    "reason": "This is a domain-specific arithmetic reordering (apply discount before tax) in a single pricing formula; the buggy expression is syntactically indistinguishable from legitimate arithmetic elsewhere, so no reusable syntactic pattern exists.",
+    "id": "",
+    "title": "",
+    "message": "",
+    "note": "",
+    "severity": "warning",
+    "rule_yaml": "",
+    "fix": ""
+  },
+  "raw": "{\"generalizable\":false,\"reason\":\"This is a domain-specific arithmetic reordering (apply discount before tax) in a single pricing formula; the buggy expression is syntactically indistinguishable from legitimate arithmetic elsewhere, so no reusable syntactic pattern exists.\",\"id\":\"\",\"title\":\"\",\"message\":\"\",\"note\":\"\",\"severity\":\"warning\",\"rule_yaml\":\"\",\"fix\":\"\"}"
+}

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "voidInvoice is an async function that mutates invoice.status and then calls db.commit() as a bare expression statement, so the function resolves before the commit settles and a rejection is silently dropped (unhandled rejection), exactly the pattern fixed in refundOrder. The sibling function markPaid in the same file does `await db.commit()` on the identical flow, confirming the awaited form is the intended contract and that this is an oversight rather than a deliberate fire-and-forget. Nothing guards it: there is no earlier await of the commit, no caller awaiting the returned promise (it is not returned), and this is production code, not a test exercising the bad pattern. The same one-line fix (prefix with `await`, or `return db.commit()`) applies directly."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"voidInvoice is an async function that mutates invoice.status and then calls db.commit() as a bare expression statement, so the function resolves before the commit settles and a rejection is silently dropped (unhandled rejection), exactly the pattern fixed in refundOrder. The sibling function markPaid in the same file does `await db.commit()` on the identical flow, confirming the awaited form is the intended contract and that this is an oversight rather than a deliberate fire-and-forget. Nothing guards it: there is no earlier await of the commit, no caller awaiting the returned promise (it is not returned), and this is production code, not a test exercising the bad pattern. The same one-line fix (prefix with `await`, or `return db.commit()`) applies directly.\"}]}"
+}

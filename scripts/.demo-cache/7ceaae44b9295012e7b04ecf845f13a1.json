@@ -1,0 +1,17 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "rankScores sorts a number[] with the default comparator, so scores are compared lexicographically ([10, 9, 100] -> [10, 100, 9]) and the subsequent .reverse() yields a wrong descending ranking. This is exactly the fixed bug; the same fix (.sort((a, b) => a - b)) applies."
+      },
+      {
+        "index": 2,
+        "real_bug": false,
+        "reason": "sortedPlayerNames sorts a string[]. The default sort already compares elements as strings, which is the intended and correct behavior here; there is no numeric-to-string coercion bug. Switching to localeCompare would only be a locale-awareness preference, not the bug that was fixed."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"rankScores sorts a number[] with the default comparator, so scores are compared lexicographically ([10, 9, 100] -> [10, 100, 9]) and the subsequent .reverse() yields a wrong descending ranking. This is exactly the fixed bug; the same fix (.sort((a, b) => a - b)) applies.\"},{\"index\":2,\"real_bug\":false,\"reason\":\"sortedPlayerNames sorts a string[]. The default sort already compares elements as strings, which is the intended and correct behavior here; there is no numeric-to-string coercion bug. Switching to localeCompare would only be a locale-awareness preference, not the bug that was fixed.\"}]}"
+}

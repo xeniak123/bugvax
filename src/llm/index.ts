@@ -1,4 +1,5 @@
 import { AnthropicProvider } from "./anthropic.js";
+import { CachedProvider } from "./cache.js";
 import { ClaudeCodeProvider, findClaudeBinary } from "./claude-code.js";
 import { LLMError, type Effort, type LLMProvider } from "./types.js";
 
@@ -13,6 +14,11 @@ export interface ProviderOptions {
  * so a Claude subscription is enough to run bugvax.
  */
 export function createProvider(opts: ProviderOptions): LLMProvider {
+  const provider = baseProvider(opts);
+  return process.env.BUGVAX_LLM_CACHE ? new CachedProvider(provider, process.env.BUGVAX_LLM_CACHE) : provider;
+}
+
+function baseProvider(opts: ProviderOptions): LLMProvider {
   const hasKey = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
   const choice = opts.provider === "auto" ? (hasKey ? "anthropic" : "claude-code") : opts.provider;
   if (choice === "anthropic") return new AnthropicProvider(opts.model, opts.effort);

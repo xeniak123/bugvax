@@ -39,7 +39,7 @@ export async function fixCommand(paths: string[], opts: { dryRun?: boolean; json
     const fixable = found.filter((m) => m.fix);
     for (const m of fixable) printChange(m);
     printManual(found.filter((m) => !m.fix));
-    if (fixable.length) console.log(`\n  ${pc.bold(plural(fixable.length, "fix", "fixes"))} ready. Run ${pc.bold("bugvax fix")} to apply them.`);
+    if (fixable.length) console.log(`\n  ${pc.bold(plural(fixable.length, "fix", "fixes"))} ready. Run ${pc.bold("bugvax fix")} to apply.`);
     console.log();
     return 1;
   }

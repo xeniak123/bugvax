@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "JS API misuse: Array.prototype.sort() with no comparator compares elements as strings, which silently mis-orders numeric arrays; the bug is syntactically detectable as a zero-argument .sort() in a numeric context.",
+    "id": "numeric-sort-without-comparator",
+    "title": "Numeric array sorted with .sort() and no comparator",
+    "message": ".sort() without a comparator compares numbers as strings (e.g. [10, 9, 100] -> [10, 100, 9]); pass (a, b) => a - b.",
+    "note": "Array.prototype.sort() coerces elements to strings and compares them lexicographically, so arrays of numbers come out in the wrong order. In a function whose result type is numeric, always pass an explicit numeric comparator such as (a, b) => a - b (default sorting is fine only for strings).",
+    "severity": "warning",
+    "rule_yaml": "rule:\n  kind: call_expression\n  all:\n    - pattern: $ARR.sort()\n    - inside:\n        stopBy: end\n        has:\n          field: return_type\n          regex: \"number\"\n",
+    "fix": "$ARR.sort((a, b) => a - b)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"JS API misuse: Array.prototype.sort() with no comparator compares elements as strings, which silently mis-orders numeric arrays; the bug is syntactically detectable as a zero-argument .sort() in a numeric context.\",\"id\":\"numeric-sort-without-comparator\",\"title\":\"Numeric array sorted with .sort() and no comparator\",\"message\":\".sort() without a comparator compares numbers as strings (e.g. [10, 9, 100] -> [10, 100, 9]); pass (a, b) => a - b.\",\"note\":\"Array.prototype.sort() coerces elements to strings and compares them lexicographically, so arrays of numbers come out in the wrong order. In a function whose result type is numeric, always pass an explicit numeric comparator such as (a, b) => a - b (default sorting is fine only for strings).\",\"severity\":\"warning\",\"rule_yaml\":\"rule:\\n  kind: call_expression\\n  all:\\n    - pattern: $ARR.sort()\\n    - inside:\\n        stopBy: end\\n        has:\\n          field: return_type\\n          regex: \\\"number\\\"\\n\",\"fix\":\"$ARR.sort((a, b) => a - b)\"}"
+}

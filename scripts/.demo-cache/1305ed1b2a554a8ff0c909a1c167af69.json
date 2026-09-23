@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "InvoiceList is a verbatim copy of the buggy OrderList pattern: useEffect is passed only a callback with no dependency array, and the effect calls api.get(\"/invoices\").then(setInvoices), which sets state on every completion. Each state update triggers a re-render, which re-runs the effect, causing an infinite refetch loop. Nothing guards the fetch (no ref, no condition, no early return) and no caller handles it. The same fix applies exactly: add `[]` as the second argument so the fetch runs once on mount."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"InvoiceList is a verbatim copy of the buggy OrderList pattern: useEffect is passed only a callback with no dependency array, and the effect calls api.get(\\\"/invoices\\\").then(setInvoices), which sets state on every completion. Each state update triggers a re-render, which re-runs the effect, causing an infinite refetch loop. Nothing guards the fetch (no ref, no condition, no early return) and no caller handles it. The same fix applies exactly: add `[]` as the second argument so the fetch runs once on mount.\"}]}"
+}

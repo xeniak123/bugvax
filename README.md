@@ -7,24 +7,10 @@ npx bugvax learn    # learn from your bug-fix history
 npx bugvax fix      # repair every latent copy of those bugs
 ```
 
-```
-🧬 bugvax learn
-  8 commits scanned · 7 likely bug fixes · analyzing 7
-
-  [1/7] ca73865  fix: await db commit when refunding orders
-        💉 antibody unawaited-db-commit
-        db.commit() is not awaited: the commit may reject or not be flushed before the function returns
-        ⚠ same bug still present in 1 place:
-          src/invoices.ts:6  db.commit();
-  [2/7] cf59d6d  fix: shipping quote hung forever when rates API was down
-        💉 antibody requests-call-without-timeout
-        This requests.* HTTP call has no timeout= argument and can block forever if the remote host stalls.
-        ⚠ same bug still present in 1 place:
-          app/payments.py:7  resp = requests.post(PAYMENTS_URL, json={"amount": amount_cents, …
-  [3/7] b7302a7  fix: apply discount before tax
-        · skipped: This is a business-logic/arithmetic ordering change …
-  …
-```
+<p align="center">
+  <img src="docs/demo.svg" width="860" alt="Terminal recording: bugvax learns 6 antibodies from a demo repository's bug fixes, finds 6 hidden copies of those bugs, and fixes 5 of them with one command">
+</p>
+<p align="center"><sub>A real run on <code>npx bugvax demo</code>: 6 antibodies learned, 6 hidden bugs found, 5 fixed automatically. The 6th has no provable one-line fix, so it is left for a human. Waits for the model are shortened.</sub></p>
 
 You fixed each of those bugs once. bugvax makes sure you never have to fix them again.
 

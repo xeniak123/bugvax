@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "Classic mutable default argument: a function parameter defaulting to a list/dict/set literal, which is created once and shared across all calls. Purely syntactic and recurs anywhere.",
+    "id": "mutable-default-argument",
+    "title": "Mutable default argument shared between calls",
+    "message": "Mutable default argument: this default list/dict/set is created once and shared by every call",
+    "note": "Python evaluates default values once at function definition time, so a `[]`, `{}` or `set()` default is reused (and mutated) across all calls, leaking state between callers. Use `None` as the default and build the container inside the body: `def f(x, tags=None): if tags is None: tags = []`.",
+    "severity": "error",
+    "rule_yaml": "rule:\n  any:\n    - kind: default_parameter\n    - kind: typed_default_parameter\n  has:\n    field: value\n    any:\n      - kind: list\n      - kind: dictionary\n      - kind: set\n      - pattern: list()\n      - pattern: dict()\n      - pattern: set()\n",
+    "fix": ""
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"Classic mutable default argument: a function parameter defaulting to a list/dict/set literal, which is created once and shared across all calls. Purely syntactic and recurs anywhere.\",\"id\":\"mutable-default-argument\",\"title\":\"Mutable default argument shared between calls\",\"message\":\"Mutable default argument: this default list/dict/set is created once and shared by every call\",\"note\":\"Python evaluates default values once at function definition time, so a `[]`, `{}` or `set()` default is reused (and mutated) across all calls, leaking state between callers. Use `None` as the default and build the container inside the body: `def f(x, tags=None): if tags is None: tags = []`.\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  any:\\n    - kind: default_parameter\\n    - kind: typed_default_parameter\\n  has:\\n    field: value\\n    any:\\n      - kind: list\\n      - kind: dictionary\\n      - kind: set\\n      - pattern: list()\\n      - pattern: dict()\\n      - pattern: set()\\n\",\"fix\":\"\"}"
+}

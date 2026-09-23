@@ -4,7 +4,7 @@ import { DEFAULT_MINE, findCandidates, toCandidate, type Candidate } from "../co
 import { sampleFromCandidate, sampleFromWorkingTree, type FixSample } from "../core/sample.js";
 import { Store, type Config } from "../core/store.js";
 import { createProvider, LLMError, type Effort, type LLMProvider } from "../llm/index.js";
-import { codeLine, firstSentence, header, loc, pc, plural, Progress } from "../ui.js";
+import { codeLine, firstSentence, header, loc, pc, plural, Progress, termWidth } from "../ui.js";
 import type { Match } from "../core/engine.js";
 import { mapLimit, Mutex } from "../util/proc.js";
 
@@ -161,16 +161,18 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
     });
     const lines = [`  ${pc.dim(`[${String(done).padStart(width)}/${jobs.length}]`)} ${job.label}`];
     const pad = " ".repeat(width * 2 + 5);
+    const room = Math.max(40, termWidth() - pad.length - 1);
     switch (outcome.status) {
       case "learned": {
         const tries = outcome.attempts > 1 ? pc.dim(` (attempt ${outcome.attempts})`) : "";
-        lines.push(`${pad}${pc.green("💉 antibody")} ${pc.bold(outcome.antibody.doc.id)}${tries}`);
-        lines.push(`${pad}${pc.dim(outcome.antibody.doc.message ?? "")}`);
+        const autofix = outcome.antibody.doc.fix ? pc.green("  🔧 proven auto-fix") : "";
+        lines.push(`${pad}${pc.green("💉 antibody")} ${pc.bold(outcome.antibody.doc.id)}${tries}${autofix}`);
+        lines.push(`${pad}${pc.dim(firstSentence(outcome.antibody.doc.message ?? "", room))}`);
         if (outcome.latent.length) {
           const label = outcome.reviewed ? "same bug still present in" : "possible copies in";
           lines.push(`${pad}${pc.yellow(`⚠ ${label} ${plural(outcome.latent.length, "place")}:`)}`);
           for (const m of outcome.latent) {
-            lines.push(`${pad}  ${loc(m)}  ${codeLine(m.lines, 70)}`);
+            lines.push(`${pad}  ${loc(m)}  ${codeLine(m.lines, Math.max(20, room - `${m.file}:${m.line}`.length - 4))}`);
             latentAll.push({ match: m, antibody: outcome.antibody.doc.id });
           }
         }
@@ -180,13 +182,13 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
         lines.push(`${pad}${pc.green("✓ already covered by")} ${outcome.by}`);
         break;
       case "skipped":
-        lines.push(`${pad}${pc.dim(`· skipped: ${firstSentence(outcome.reason)}`)}`);
+        lines.push(`${pad}${pc.dim(`· skipped: ${firstSentence(outcome.reason, room - 11)}`)}`);
         break;
       case "failed":
-        lines.push(`${pad}${pc.red(`✗ no antibody: ${outcome.reason}`)}`);
+        lines.push(`${pad}${pc.red(`✗ no antibody: ${firstSentence(outcome.reason, room - 15)}`)}`);
         break;
       case "interrupted":
-        lines.push(`${pad}${pc.yellow(`⏸ not analyzed: ${outcome.reason}`)}`);
+        lines.push(`${pad}${pc.yellow(`⏸ not analyzed: ${firstSentence(outcome.reason, room - 17)}`)}`);
         break;
     }
     progress.log(lines.join("\n"));

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "rankScores takes number[] and returns number[], but calls scores.sort() with no comparator, so the numbers are coerced to strings and ordered lexicographically ([10, 9, 100] -> [10, 100, 9]); .reverse() then yields a wrong 'descending' ranking. Identical to the fixed topOrderTotals case and the same fix applies: scores.sort((a, b) => a - b).reverse(). (The sibling sortedPlayerNames is fine since default sorting is correct for strings.)"
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"rankScores takes number[] and returns number[], but calls scores.sort() with no comparator, so the numbers are coerced to strings and ordered lexicographically ([10, 9, 100] -> [10, 100, 9]); .reverse() then yields a wrong 'descending' ranking. Identical to the fixed topOrderTotals case and the same fix applies: scores.sort((a, b) => a - b).reverse(). (The sibling sortedPlayerNames is fine since default sorting is correct for strings.)\"}]}"
+}

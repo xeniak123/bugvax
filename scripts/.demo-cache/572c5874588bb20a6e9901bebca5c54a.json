@@ -1,0 +1,14 @@
+{
+  "json": {
+    "reason": "Classic React hook misuse: useEffect called with only a callback and no dependency array, so the effect re-runs on every render. Detectable purely from syntax (argument count).",
+    "generalizable": true,
+    "id": "use-effect-missing-dependency-array",
+    "title": "useEffect without a dependency array",
+    "message": "useEffect is called without a dependency array, so the effect runs after every render (here refetching data in a loop)",
+    "note": "Passing only a callback to useEffect makes it re-run on every render, which causes repeated fetches and can loop forever when the effect sets state. Add a dependency array: `[]` to run once on mount, or list the values the effect actually depends on.",
+    "severity": "warning",
+    "rule_yaml": "rule:\n  any:\n    - pattern: useEffect($FN)\n    - pattern: React.useEffect($FN)\n  has:\n    field: arguments\n    has:\n      any:\n        - kind: arrow_function\n        - kind: function_expression\n        - kind: identifier\n",
+    "fix": "useEffect($FN, [])"
+  },
+  "raw": "{\"reason\":\"Classic React hook misuse: useEffect called with only a callback and no dependency array, so the effect re-runs on every render. Detectable purely from syntax (argument count).\",\"generalizable\":true,\"id\":\"use-effect-missing-dependency-array\",\"title\":\"useEffect without a dependency array\",\"message\":\"useEffect is called without a dependency array, so the effect runs after every render (here refetching data in a loop)\",\"note\":\"Passing only a callback to useEffect makes it re-run on every render, which causes repeated fetches and can loop forever when the effect sets state. Add a dependency array: `[]` to run once on mount, or list the values the effect actually depends on.\",\"severity\":\"warning\",\"rule_yaml\":\"rule:\\n  any:\\n    - pattern: useEffect($FN)\\n    - pattern: React.useEffect($FN)\\n  has:\\n    field: arguments\\n    has:\\n      any:\\n        - kind: arrow_function\\n        - kind: function_expression\\n        - kind: identifier\\n\",\"fix\":\"useEffect($FN, [])\"}"
+}

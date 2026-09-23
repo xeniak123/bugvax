@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "Classic JS API misuse: Array.prototype.sort() without a comparator sorts by string representation, which is wrong for numeric arrays; it is detectable syntactically as a zero-argument .sort() call.",
+    "id": "sort-without-comparator",
+    "title": "Array.sort() called without a comparator function",
+    "message": ".sort() without a comparator sorts elements as strings (e.g. [10, 9, 100] -> [10, 100, 9]); pass an explicit comparator.",
+    "note": "Array.prototype.sort() converts elements to strings and compares them lexicographically by default, so numeric arrays end up in the wrong order. Pass a comparator such as (a, b) => a - b for numbers, or (a, b) => a.localeCompare(b) for strings, to make the ordering explicit and correct.",
+    "severity": "warning",
+    "rule_yaml": "rule:\n  kind: call_expression\n  all:\n    - pattern: $ARR.sort()\n    - not:\n        has:\n          field: function\n          has:\n            field: property\n            regex: \"^(?!sort$)\"\n",
+    "fix": "$ARR.sort((a, b) => a - b)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"Classic JS API misuse: Array.prototype.sort() without a comparator sorts by string representation, which is wrong for numeric arrays; it is detectable syntactically as a zero-argument .sort() call.\",\"id\":\"sort-without-comparator\",\"title\":\"Array.sort() called without a comparator function\",\"message\":\".sort() without a comparator sorts elements as strings (e.g. [10, 9, 100] -> [10, 100, 9]); pass an explicit comparator.\",\"note\":\"Array.prototype.sort() converts elements to strings and compares them lexicographically by default, so numeric arrays end up in the wrong order. Pass a comparator such as (a, b) => a - b for numbers, or (a, b) => a.localeCompare(b) for strings, to make the ordering explicit and correct.\",\"severity\":\"warning\",\"rule_yaml\":\"rule:\\n  kind: call_expression\\n  all:\\n    - pattern: $ARR.sort()\\n    - not:\\n        has:\\n          field: function\\n          has:\\n            field: property\\n            regex: \\\"^(?!sort$)\\\"\\n\",\"fix\":\"$ARR.sort((a, b) => a - b)\"}"
+}

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "Identical pattern to the fixed bug: requireAdmin sends res.status(403).json({error:'forbidden'}) inside the if without returning, so next() still executes and the forbidden request reaches the handler, likely causing a second response (ERR_HTTP_HEADERS_SENT). No early guard, else branch, or caller-side handling prevents fall-through. The same fix applies: `return res.status(403).json(...)` (or move next() into an else)."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"Identical pattern to the fixed bug: requireAdmin sends res.status(403).json({error:'forbidden'}) inside the if without returning, so next() still executes and the forbidden request reaches the handler, likely causing a second response (ERR_HTTP_HEADERS_SENT). No early guard, else branch, or caller-side handling prevents fall-through. The same fix applies: `return res.status(403).json(...)` (or move next() into an else).\"}]}"
+}

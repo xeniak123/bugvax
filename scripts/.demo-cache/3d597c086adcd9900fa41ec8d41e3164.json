@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "The fix adds the missing `timeout=` keyword argument to a `requests` HTTP call — a syntactically detectable API misuse that can recur anywhere requests is used.",
+    "id": "requests-call-without-timeout",
+    "title": "HTTP request without a timeout",
+    "message": "requests.$M() is called without a timeout= argument: it can hang forever if the remote service stalls",
+    "note": "By default `requests` waits indefinitely for a response, so a slow or dead upstream service blocks the calling thread forever. Always pass an explicit `timeout=` (e.g. `timeout=10`) to every requests call.",
+    "severity": "warning",
+    "rule_yaml": "rule:\n  kind: call\n  all:\n    - pattern: requests.$M($$$ARGS)\n    - not:\n        has:\n          kind: argument_list\n          has:\n            kind: keyword_argument\n            has:\n              field: name\n              regex: \"^timeout$\"\nconstraints:\n  M:\n    regex: \"^(get|post|put|patch|delete|head|options|request)$\"\n",
+    "fix": "requests.$M($$$ARGS, timeout=10)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"The fix adds the missing `timeout=` keyword argument to a `requests` HTTP call — a syntactically detectable API misuse that can recur anywhere requests is used.\",\"id\":\"requests-call-without-timeout\",\"title\":\"HTTP request without a timeout\",\"message\":\"requests.$M() is called without a timeout= argument: it can hang forever if the remote service stalls\",\"note\":\"By default `requests` waits indefinitely for a response, so a slow or dead upstream service blocks the calling thread forever. Always pass an explicit `timeout=` (e.g. `timeout=10`) to every requests call.\",\"severity\":\"warning\",\"rule_yaml\":\"rule:\\n  kind: call\\n  all:\\n    - pattern: requests.$M($$$ARGS)\\n    - not:\\n        has:\\n          kind: argument_list\\n          has:\\n            kind: keyword_argument\\n            has:\\n              field: name\\n              regex: \\\"^timeout$\\\"\\nconstraints:\\n  M:\\n    regex: \\\"^(get|post|put|patch|delete|head|options|request)$\\\"\\n\",\"fix\":\"requests.$M($$$ARGS, timeout=10)\"}"
+}

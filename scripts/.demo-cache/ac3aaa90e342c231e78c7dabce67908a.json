@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "`notes={}` is a mutable default evaluated once at definition time, and the body mutates it (`notes[item.name] = \"added\"`) and returns it. Every call without an explicit `notes` argument shares and accumulates entries in the same dict, leaking state between users' wishlists — exactly the shared-default bug from the cart fix. The identical fix applies: `notes=None` plus `if notes is None: notes = {}`. Nothing guards against this elsewhere, and this is production code, not a test exercising the pattern."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"`notes={}` is a mutable default evaluated once at definition time, and the body mutates it (`notes[item.name] = \\\"added\\\"`) and returns it. Every call without an explicit `notes` argument shares and accumulates entries in the same dict, leaking state between users' wishlists — exactly the shared-default bug from the cart fix. The identical fix applies: `notes=None` plus `if notes is None: notes = {}`. Nothing guards against this elsewhere, and this is production code, not a test exercising the pattern.\"}]}"
+}
