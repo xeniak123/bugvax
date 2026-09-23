@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>bugvax</title>
+<meta name="description" content="bugvax turns every bug you have fixed into an antibody: a validated rule that blocks the whole bug class, in CI and inside AI coding agents. Open source.">
+<meta name="theme-color" content="#0b0e11">
+<meta property="og:type" content="website">
+<meta property="og:title" content="bugvax">
+<meta property="og:description" content="Every bug you fix becomes an antibody. Open source, for developers and their AI agents.">
+<meta property="og:image" content="https://xeniak123.github.io/bugvax/assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%230b0e11'/%3E%3Cg fill='none' stroke='%23e8ecee' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M12 13.5V20'/%3E%3Cpath d='M12 13.5 7 6.5'/%3E%3Cpath d='M12 13.5 17 6.5'/%3E%3C/g%3E%3Ccircle cx='12' cy='13.5' r='2.2' fill='%23f0b541'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js" defer></script>
+<script type="module" src="main.js"></script>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="bugvax home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 13.5V20"/><path d="M12 13.5 7 6.5"/><path d="M12 13.5 17 6.5"/></g><circle cx="12" cy="13.5" r="2.2" fill="#f0b541"/></svg>
+      bugvax
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#demo">Demo</a>
+      <a href="#install">Install</a>
+      <a href="#vaccines">Vaccines</a>
+    </nav>
+    <a class="nav-gh" href="https://github.com/xeniak123/bugvax"><svg data-icon="github"></svg>GitHub</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero" id="top">
+    <canvas class="hero-canvas" aria-hidden="true"></canvas>
+    <div class="wrap hero-content">
+      <div class="hero-copy">
+      <h1 class="display">Every bug you fix becomes an <em>antibody</em>.</h1>
+      <p class="lede">bugvax learns from your git history and blocks every bug class you fixed, in CI and inside your AI agents.</p>
+      <div class="hero-ctas">
+        <button class="cmd" type="button" data-copy="npx bugvax learn" aria-label="Copy the command npx bugvax learn">
+          <span><span class="prompt">$</span> npx bugvax learn</span>
+          <span class="copy-state" aria-hidden="true"><svg class="is-idle" data-icon="copy"></svg><svg class="is-done" data-icon="check"></svg></span>
+        </button>
+        <a class="btn-line" href="#install">Set up your agent <svg data-icon="arrow-right"></svg></a>
+      </div>
+      </div>
+    </div>
+    <div class="databar" aria-hidden="true">
+      <div class="wrap databar-inner">
+        <span class="db-hide-sm">HV <b>15.0 kV</b></span>
+        <span>MAG <b data-mag>1 200×</b></span>
+        <span class="db-hide-sm">WD <b>4.6 mm</b></span>
+        <span class="db-hide-md">DET <b>SE</b></span>
+        <span class="scalebar"><i></i><b data-scale>10 µm</b></span>
+        <span class="db-count"><span class="db-hide-sm">NEUTRALIZED</span><span class="db-show-sm">BUGS</span> <b data-count>0</b></span>
+        <span class="db-hint db-hide-md" data-hint>Click the field to release a bug</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="recurrence">
+    <div class="wrap recur">
+      <figure class="specimen-photo" data-parallax>
+        <img src="assets/sem-virus.webp" width="1200" height="1600" loading="lazy" alt="Scanning electron micrograph of a spiky virus particle in false-colour magenta, with a grey particle of the same kind behind it.">
+      </figure>
+      <div>
+        <h2 class="h2" data-reveal>The same bug. Again.</h2>
+        <p class="body" data-reveal>You fixed it once. Weeks later an agent writes it into another file, because rules in CLAUDE.md are only suggestions and review bots remember nothing.</p>
+        <div class="timeline">
+          <div class="event is-fix" data-reveal><span class="when">March</span><code><b>ca73865</b> fix: await db commit when refunding orders</code></div>
+          <div class="event is-again" data-reveal><span class="when">June</span><code>src/invoices.ts:6&nbsp;&nbsp;<b>db.commit();</b></code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <div class="wrap how">
+      <div class="how-intro">
+        <h2 class="h2" data-reveal>From a fix to an <em>antibody</em>.</h2>
+        <p class="body" data-reveal>Your history already holds the answers. bugvax turns each fix into a rule and keeps it only if it survives the lab.</p>
+      </div>
+
+      <div class="steps">
+        <div class="rail" aria-hidden="true"><i></i></div>
+
+        <article class="step" data-step="0" data-spec="git log">
+          <h3 class="h3">Mine</h3>
+          <p>bugvax reads your git history and picks the commits that fixed bugs. Typos, lint, formatting and dependency bumps are skipped.</p>
+          <div class="plate"><pre class="code"><span class="k">51ed032</span>  fix: top order totals were sorted as strings
+<span class="k">cf59d6d</span>  fix: shipping quote hung forever when rates API was down
+<span class="k">7d953d8</span>  fix: OrderList refetched orders on every render
+<span class="k">b7302a7</span>  fix: apply discount before tax
+<span class="k">35c1f22</span>  fix: default tags list was shared between carts
+<span class="k">d65ea5a</span>  fix: stop calling next() after sending 401
+<span class="strike">4ae9120  fix typo in README</span>
+<span class="k">ca73865</span>  <span class="g">fix: await db commit when refunding orders</span>
+<span class="c">0da5651  initial shop</span></pre></div>
+        </article>
+
+        <article class="step" data-step="1" data-spec="unawaited-db-commit.yml">
+          <h3 class="h3">Generalize</h3>
+          <p>A model writes an ast-grep rule for the whole bug class, not just the line that changed, plus a template for the fix.</p>
+          <div class="plate"><pre class="code"><span class="k">id:</span> <span class="s">unawaited-db-commit</span>
+<span class="k">language:</span> <span class="s">tsx</span>
+<span class="k">severity:</span> <span class="s">error</span>
+<span class="k">message:</span> <span class="s">"commit() is called without await"</span>
+<span class="k">rule:</span>
+  <span class="k">all:</span>
+    - <span class="k">kind:</span> <span class="s">call_expression</span>
+    - <span class="k">pattern:</span> <span class="g">$DB.commit($$$ARGS)</span>
+    - <span class="k">inside:</span>
+        <span class="k">kind:</span> <span class="s">expression_statement</span>
+<span class="k">fix:</span> <span class="g">await $DB.commit($$$ARGS)</span></pre></div>
+        </article>
+
+        <article class="step" data-step="2" data-spec="validation">
+          <h3 class="h3">Validate</h3>
+          <p>The rule has to match the buggy code, stay silent on the fixed code and leave the rest of the repo alone. A second model reviews every match.</p>
+          <div class="plate">
+            <ul class="checks">
+              <li><span class="tick"><svg data-icon="check"></svg></span><span><strong>Matches the buggy code</strong><span class="sub">src/refunds.ts:6 before ca73865</span></span></li>
+              <li><span class="tick"><svg data-icon="check"></svg></span><span><strong>Silent on the fixed code</strong><span class="sub">await db.commit(); after ca73865</span></span></li>
+              <li><span class="tick"><svg data-icon="check"></svg></span><span><strong>Not too broad</strong><span class="sub">1 match in today's code, limit 10</span></span></li>
+              <li><span class="tick"><svg data-icon="check"></svg></span><span><strong>Reviewed</strong><span class="sub">src/invoices.ts:6 confirmed as the same bug</span></span></li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="step" data-step="3" data-spec="src/invoices.ts">
+          <h3 class="h3">Prove the fix</h3>
+          <p>A fix template is kept only if applying it to the buggy code reproduces what the human fix did. Nothing gets fixed on a guess.</p>
+          <div class="plate"><pre class="code"><span class="k">export async function</span> voidInvoice(id: string) {
+  <span class="k">const</span> invoice = <span class="k">await</span> db.invoices.find(id);
+  invoice.status = <span class="s">"void"</span>;
+<span class="del">- db.commit();</span>
+<span class="add">+ await db.commit();</span>
+}
+
+<span class="c">template await $DB.commit($$$ARGS) reproduced ca73865</span></pre></div>
+        </article>
+
+        <article class="step" data-step="4" data-spec="agent hook">
+          <h3 class="h3">Enforce</h3>
+          <p>The rules run in milliseconds in pre-commit, in CI and in your agent's hooks. No model runs at check time.</p>
+          <div class="plate"><pre class="code"><span class="m">bugvax: this edit re-introduces 1 bug that was
+already fixed before.</span>
+
+src/refunds.ts:6  [unawaited-db-commit]
+  commit() is called without await
+  proven fix: replace `db.commit()` with
+              `<span class="g">await db.commit()</span>`
+  history: fixed before in <span class="k">ca73865</span>
+
+<span class="c">Please fix these before continuing.</span></pre></div>
+        </article>
+      </div>
+
+      <div class="specimen" aria-hidden="true">
+        <div class="specimen-head"><span>specimen</span><b data-spec-name>git log</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="demo">
+    <div class="wrap">
+      <div class="demo-head">
+        <h2 class="h2" data-reveal>Watch it learn.</h2>
+        <p class="body" data-reveal>A real, unedited session on the demo repository: learn, fix, scan. Only the waits for the model are shortened.</p>
+      </div>
+      <div class="player" data-reveal>
+        <pre class="term" data-term tabindex="0" aria-label="Recording of a bugvax session"></pre>
+        <div class="player-bar">
+          <button class="icon-btn" type="button" data-play aria-label="Play"><svg data-icon="play"></svg></button>
+          <button class="icon-btn" type="button" data-restart aria-label="Restart"><svg data-icon="arrow-counter-clockwise"></svg></button>
+          <div class="scrub" data-scrub role="slider" tabindex="0" aria-label="Recording position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="track"></div>
+            <div class="fill"></div>
+          </div>
+          <button class="speed" type="button" data-speed aria-label="Playback speed">1×</button>
+          <span class="player-time" data-time>0:00</span>
+        </div>
+      </div>
+      <p class="caption">6 antibodies learned, 6 hidden bugs found, 5 fixed with one command. The sixth has no provable one-line fix, so bugvax leaves it for a human.</p>
+    </div>
+  </section>
+
+  <section class="section" id="install">
+    <div class="wrap">
+      <div class="install-head">
+        <h2 class="h2" data-reveal>Vaccinate your <em>agents</em>.</h2>
+        <div class="first-step" data-reveal>
+          <span>Learn from any repository first:</span>
+          <button class="cmd" type="button" data-copy="npx bugvax learn" aria-label="Copy the command npx bugvax learn">
+            <span><span class="prompt">$</span> npx bugvax learn</span>
+            <span class="copy-state" aria-hidden="true"><svg class="is-idle" data-icon="copy"></svg><svg class="is-done" data-icon="check"></svg></span>
+          </button>
+          <span>Then choose where bugvax should guard your code.</span>
+        </div>
+      </div>
+      <div class="rack" role="tablist" aria-label="Where to install bugvax" data-rack></div>
+      <div class="dose" role="tabpanel" data-dose></div>
+    </div>
+  </section>
+
+  <section class="section" id="vaccines">
+    <div class="wrap">
+      <h2 class="h2" data-reveal>No history yet? Start with a <em>vaccine</em>.</h2>
+      <p class="body" data-reveal style="margin-bottom: clamp(36px, 5vw, 64px)">The starter pack holds four validated antibodies for classic bug classes. On axios, Express, requests and Excalidraw it raised zero false alarms.</p>
+      <div class="bento">
+        <article class="cell cell-feature" data-reveal>
+          <img src="assets/vials.webp" width="1600" height="1200" loading="lazy" alt="Small glass vials filled with pale gold liquid on a graphite surface.">
+          <span class="kind">starter pack</span>
+          <h3 style="font-size: clamp(28px, 3vw, 42px); font-variation-settings: 'wdth' 116">Four antibodies, one command.</h3>
+          <p class="note">For Python and JavaScript/TypeScript. Installed vaccines skip test files.</p>
+          <div>
+            <button class="cmd" type="button" data-copy="npx bugvax vaccinate starter" aria-label="Copy the command npx bugvax vaccinate starter">
+              <span><span class="prompt">$</span> npx bugvax vaccinate starter</span>
+              <span class="copy-state" aria-hidden="true"><svg class="is-idle" data-icon="copy"></svg><svg class="is-done" data-icon="check"></svg></span>
+            </button>
+          </div>
+        </article>
+        <article class="cell cell-a" data-reveal>
+          <span class="kind">python</span>
+          <h3>HTTP call without a timeout</h3>
+          <span class="spacer"></span>
+          <pre class="antigen">resp = <b>requests.get(url)</b></pre>
+          <pre class="remedy">resp = requests.get(url, timeout=10)</pre>
+        </article>
+        <article class="cell cell-b" data-reveal>
+          <span class="kind">python</span>
+          <h3>Mutable default argument</h3>
+          <span class="spacer"></span>
+          <pre class="antigen">def add_item(cart, item, <b>tags=[]</b>):</pre>
+          <p class="note">Flagged, not auto-fixed: the real fix adds a guard line, so no one-line template could prove itself.</p>
+        </article>
+        <article class="cell cell-c" data-reveal>
+          <span class="kind">typescript</span>
+          <h3>Numbers sorted as strings</h3>
+          <span class="spacer"></span>
+          <pre class="antigen">return <b>scores.sort()</b>.reverse();</pre>
+          <pre class="remedy">return scores.sort((a, b) =&gt; a - b).reverse();</pre>
+        </article>
+        <article class="cell cell-d" data-reveal>
+          <span class="kind">express</span>
+          <h3>An error response that falls through</h3>
+          <span class="spacer"></span>
+          <pre class="antigen">if (!req.user?.isAdmin) {
+  <b>res.status(403).json({ error: "forbidden" });</b>
+}
+next();</pre>
+          <pre class="remedy">  return res.status(403).json({ error: "forbidden" });</pre>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="proof">
+    <div class="wrap">
+      <div class="proof-head">
+        <h2 class="h2" data-reveal>Measured on a real run.</h2>
+        <p class="body" data-reveal>The demo repository holds seven bug fixes, and six of those bugs still hide in other files. One run of bugvax did this with it.</p>
+      </div>
+      <div class="flow">
+        <div class="flow-line" aria-hidden="true"><i></i></div>
+        <div class="stage" data-reveal><span class="num">7</span><p>bug fixes found in the history</p></div>
+        <div class="stage is-gold" data-reveal><span class="num">6</span><p>antibodies learned and validated</p></div>
+        <div class="stage is-magenta" data-reveal><span class="num">6</span><p>hidden copies of those bugs found</p></div>
+        <div class="stage is-gold" data-reveal><span class="num">5</span><p>fixed with one command</p></div>
+        <div class="stage" data-reveal><span class="num">1</span><p>left for a human, on purpose</p></div>
+      </div>
+      <div class="proof-notes">
+        <p data-reveal><strong>One fix was skipped.</strong> "Apply discount before tax" is business logic, not a reusable pattern, so no rule was forced out of it.</p>
+        <p data-reveal><strong>Checks cost nothing.</strong> A model runs only while learning. Scans and hooks are plain ast-grep rules that finish in milliseconds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="final" id="start">
+    <div class="final-bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <h2 class="h2" data-reveal>Immunize your repository.</h2>
+      <p class="lede" data-reveal>Open source and MIT licensed. Works with a Claude subscription or an API key.</p>
+      <div class="hero-ctas" data-reveal>
+        <button class="cmd" type="button" data-copy="npx bugvax learn" aria-label="Copy the command npx bugvax learn">
+          <span><span class="prompt">$</span> npx bugvax learn</span>
+          <span class="copy-state" aria-hidden="true"><svg class="is-idle" data-icon="copy"></svg><svg class="is-done" data-icon="check"></svg></span>
+        </button>
+        <a class="btn-line" href="https://github.com/xeniak123/bugvax">GitHub <svg data-icon="arrow-up-right"></svg></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <a class="brand" href="#top" aria-label="Back to top">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 13.5V20"/><path d="M12 13.5 7 6.5"/><path d="M12 13.5 17 6.5"/></g><circle cx="12" cy="13.5" r="2.2" fill="#f0b541"/></svg>
+      bugvax
+    </a>
+    <span class="spacer"></span>
+    <a href="https://github.com/xeniak123/bugvax#readme">Documentation</a>
+    <a href="https://www.npmjs.com/package/bugvax">npm</a>
+    <a href="https://github.com/xeniak123/bugvax">GitHub</a>
+    <span>MIT license</span>
+  </div>
+</footer>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="toast" role="status" aria-live="polite" data-toast></div>
+</body>
+</html>
