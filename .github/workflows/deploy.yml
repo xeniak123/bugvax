@@ -1,0 +1,32 @@
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload site to gh-pages branch
+        run: |
+          git checkout --orphan gh-pages 2>/dev/null || true
+          git rm -rf . 2>/dev/null || true
+          mkdir -p "$GITHUB_WORKSPACE/site-tmp"
+          cp -r site/* "$GITHUB_WORKSPACE/site-tmp/"
+          # move site files to repo root for gh-pages
+          mv "$GITHUB_WORKSPACE/site-tmp"/* .
+          rmdir "$GITHUB_WORKSPACE/site-tmp" 2>/dev/null || true
+          git add --all
+          if [ -n "$(git diff-index --cached HEAD)" ]; then
+            git commit -m "Deploy site"
+          fi
+          git push origin gh-pages --force
