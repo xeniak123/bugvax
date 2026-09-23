@@ -1,4 +1,6 @@
+import { rmSync, symlinkSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import YAML from "yaml";
@@ -66,6 +68,24 @@ describe("cli", () => {
     // Staged check sees the same thing.
     await git(repo.dir, ["add", "src/refunds.ts"]);
     expect((await cli(["check", "--staged"], repo.dir)).code).toBe(1);
+  });
+
+  it("the hook still works when the agent reports paths through a symlink", async () => {
+    // e.g. macOS /var -> /private/var, Windows 8.3 short names, projects opened via a link
+    repo = await repoWithAntibody();
+    await repo.write({ "src/refunds.ts": REFUNDS_FIXED.replace("await db.commit();", "db.commit();") });
+    const link = join(tmpdir(), `bugvax-link-${process.pid}-${Date.now()}`);
+    symlinkSync(repo.dir, link, process.platform === "win32" ? "junction" : "dir");
+    try {
+      const input = JSON.stringify({ cwd: link, tool_name: "Edit", tool_input: { file_path: join(link, "src", "refunds.ts") } });
+      const hook = await cli(["check", "--hook", "claude-code"], link, input);
+      expect(hook.stderr).toContain("src/refunds.ts:6");
+      expect(hook.code).toBe(2);
+      const outside = JSON.stringify({ cwd: link, tool_name: "Edit", tool_input: { file_path: join(tmpdir(), "elsewhere.ts") } });
+      expect((await cli(["check", "--hook", "claude-code"], link, outside)).code).toBe(0);
+    } finally {
+      rmSync(link);
+    }
   });
 
   it("init installs the Claude Code hook without clobbering existing settings", async () => {

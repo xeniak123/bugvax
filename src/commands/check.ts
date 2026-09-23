@@ -1,8 +1,20 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { scan, type Match } from "../core/engine.js";
-import { changedFiles, diffHunks, git, isTracked, newRange, overlaps, repoRoot, showFile, untrackedFiles, type Hunk } from "../core/git.js";
+import {
+  changedFiles,
+  diffHunks,
+  git,
+  isTracked,
+  newRange,
+  overlaps,
+  repoRelative,
+  repoRoot,
+  showFile,
+  untrackedFiles,
+  type Hunk,
+} from "../core/git.js";
 import { languageOf } from "../core/languages.js";
 import { antibodyMeta, Store, type Antibody } from "../core/store.js";
 import { header, pc, plural, printFindings } from "../ui.js";
@@ -33,7 +45,8 @@ export async function checkCommand(files: string[], opts: CheckOptions): Promise
   let changed: Map<string, Hunk[]> | null = null;
   const newFiles = new Set<string>();
   if (files.length) {
-    matches = await scan(rules, files.map((f) => toRepoPath(root, f)), root, { globs });
+    const paths = files.map((f) => repoRelative(root, f)).filter((p): p is string => p !== null);
+    matches = await scan(rules, paths, root, { globs });
   } else if (opts.staged) {
     const paths = (await changedFiles(root, ["--cached"])).filter((p) => languageOf(p));
     changed = await diffHunks(root, ["--cached"], paths);
@@ -62,11 +75,6 @@ export async function checkCommand(files: string[], opts: CheckOptions): Promise
   printFindings(matches, antibodies);
   console.log(`\n  ${pc.red(pc.bold(plural(matches.length, "known bug")))} re-introduced. Fix them, or edit the antibody if it is wrong.\n`);
   return 1;
-}
-
-function toRepoPath(root: string, f: string): string {
-  const abs = isAbsolute(f) ? f : join(process.cwd(), f);
-  return relative(root, abs).replace(/\\/g, "/");
 }
 
 function onChangedLines(matches: Match[], changed: Map<string, Hunk[]>): Match[] {
@@ -122,8 +130,8 @@ async function hookCheck(kind: string): Promise<number> {
   const store = new Store(root);
   const antibodies = await store.antibodies();
   if (!antibodies.length) return 0;
-  const rel = relative(root, isAbsolute(file) ? file : join(input.cwd ?? process.cwd(), file)).replace(/\\/g, "/");
-  if (rel.startsWith("..")) return 0;
+  const rel = repoRelative(root, file, input.cwd);
+  if (!rel) return 0;
 
   let matches = await scan(antibodies.map((a) => a.doc), [rel], root);
   if (await isTracked(root, rel)) matches = onChangedLines(matches, await diffHunks(root, ["HEAD"], [rel]));

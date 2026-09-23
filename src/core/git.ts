@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { run } from "../util/proc.js";
 
 export interface Hunk {
@@ -36,6 +38,29 @@ export async function git(cwd: string, args: string[], input?: string): Promise<
 export async function gitMaybe(cwd: string, args: string[]): Promise<string | null> {
   const res = await run("git", args, { cwd });
   return res.code === 0 ? res.stdout : null;
+}
+
+/**
+ * Resolve symlinks and Windows 8.3 short names, so paths coming from outside (an agent's hook
+ * payload, the shell) can be compared with the repo root git reports.
+ */
+export function canonical(p: string): string {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    try {
+      return join(realpathSync.native(dirname(p)), basename(p)); // e.g. a file that was just deleted
+    } catch {
+      return p;
+    }
+  }
+}
+
+/** `file` relative to `root` with forward slashes, or null when it is outside the repository. */
+export function repoRelative(root: string, file: string, cwd = process.cwd()): string | null {
+  const abs = isAbsolute(file) ? file : join(cwd, file);
+  const rel = relative(canonical(root), canonical(abs)).replace(/\\/g, "/");
+  return rel.startsWith("../") || rel === ".." || isAbsolute(rel) ? null : rel;
 }
 
 export async function repoRoot(cwd: string): Promise<string> {
