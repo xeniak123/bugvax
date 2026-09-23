@@ -1,0 +1,8 @@
+node_modules/
+dist/
+scratch/
+coverage/
+*.log
+.DS_Store
+# local playground created by `bugvax demo`
+demo-shop/

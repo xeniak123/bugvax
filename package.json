@@ -1,0 +1,59 @@
+{
+  "name": "bugvax",
+  "version": "0.1.0",
+  "description": "Vaccinate your codebase: every bug you fix becomes a validated rule that blocks the whole bug class forever, for humans and AI agents.",
+  "type": "module",
+  "bin": {
+    "bugvax": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "scripts/demo-repo.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "static-analysis",
+    "linter",
+    "ast-grep",
+    "bugs",
+    "regression",
+    "ai",
+    "claude",
+    "coding-agent",
+    "vibecoding",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xeniak123/bugvax.git"
+  },
+  "homepage": "https://github.com/xeniak123/bugvax#readme",
+  "bugs": {
+    "url": "https://github.com/xeniak123/bugvax/issues"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@ast-grep/cli": "^0.45.3",
+    "commander": "^15.0.0",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
