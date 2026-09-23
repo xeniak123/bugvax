@@ -1,0 +1,47 @@
+# bugvax vaccine: an ast-grep rule learned from a real bug fix.
+id: requests-call-without-timeout
+language: python
+severity: warning
+message: "requests.$M() is called without a timeout= argument: it can hang forever if the remote service stalls"
+note: By default `requests` waits indefinitely for a response, so a slow or dead upstream service blocks the calling thread forever. Always pass an explicit `timeout=` (e.g. `timeout=10`) to every requests call.
+rule:
+  kind: call
+  all:
+    - pattern: requests.$M($$$ARGS)
+    - not:
+        has:
+          kind: argument_list
+          has:
+            kind: keyword_argument
+            has:
+              field: name
+              regex: ^timeout$
+    # curated: **kwargs may already carry a timeout
+    - not:
+        has:
+          kind: argument_list
+          has:
+            kind: dictionary_splat
+constraints:
+  M:
+    regex: ^(get|post|put|patch|delete|head|options|request)$
+fix: requests.$M($$$ARGS, timeout=10)
+metadata:
+  bugvax:
+    title: HTTP request without a timeout
+    learnedAt: 2026-09-23T18:03:10.729Z
+    source:
+      kind: commit
+      commit: cf59d6dcb8cd9ee9d235d8f3749cbec1b06713c2
+      subject: "fix: shipping quote hung forever when rates API was down"
+      date: 2026-01-26T10:00:00Z
+      files:
+        - app/shipping.py
+      repo: the bugvax demo repository (npx bugvax demo)
+    validation:
+      firesOnBuggy: true
+      silentOnFixed: true
+      headMatches: 1
+      attempts: 2
+      reviewed: true
+      fix: proven

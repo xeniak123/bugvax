@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import YAML from "yaml";
 import { describe, expect, it } from "vitest";
 import { newRange, oldRange, overlaps, parseHunks, parseLog } from "../src/core/git.js";
 import { isTestFile, languageOf } from "../src/core/languages.js";
@@ -95,6 +98,17 @@ describe("snippets", () => {
     expect(mergeRanges([[5, 7], [1, 2], [8, 9]])).toEqual([[1, 2], [5, 9]]);
     const out = windows("a\nb\nc\nd\ne", [[3, 3]], 1);
     expect(out).toBe("  2| b\n> 3| c\n  4| d");
+  });
+});
+
+describe("repository files", () => {
+  it("has valid workflow and action YAML", () => {
+    const root = resolve(import.meta.dirname, "..");
+    const files = [join(root, "action.yml"), ...readdirSync(join(root, ".github", "workflows")).map((f) => join(root, ".github", "workflows", f))];
+    for (const f of files) {
+      const doc = YAML.parseDocument(readFileSync(f, "utf8"));
+      expect(doc.errors.map((e) => `${f}: ${e.message}`)).toEqual([]);
+    }
   });
 });
 

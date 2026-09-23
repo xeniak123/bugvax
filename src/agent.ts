@@ -43,8 +43,8 @@ export function historyLine(meta: AntibodyMeta): string {
   const s = meta.source;
   if (s.kind === "vaccine") {
     const repo = s.repo?.replace(/^https:\/\/github\.com\//, "");
-    const where = repo ? ` in ${repo}${s.commit ? `@${s.commit.slice(0, 7)}` : ""}` : "";
-    return `"${s.pack}" vaccine: learned from the fix${where} "${s.subject}"`;
+    const where = repo ? ` in ${repo}${s.commit ? ` (${s.commit.slice(0, 7)})` : ""}` : "";
+    return `"${s.pack}" vaccine: learned from the fix "${s.subject}"${where}`;
   }
   if (s.commit) return `fixed before in ${s.commit.slice(0, 7)} "${s.subject}"`;
   return `learned from "${s.subject}"`;

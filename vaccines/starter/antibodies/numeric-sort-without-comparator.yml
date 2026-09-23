@@ -1,0 +1,35 @@
+# bugvax vaccine: an ast-grep rule learned from a real bug fix.
+id: numeric-sort-without-comparator
+language: tsx
+severity: warning
+message: .sort() without a comparator compares numbers as strings (e.g. [10, 9, 100] -> [10, 100, 9]); pass (a, b) => a - b.
+note: Array.prototype.sort() coerces elements to strings and compares them lexicographically, so arrays of numbers come out in the wrong order. In a function whose result type is numeric, always pass an explicit numeric comparator such as (a, b) => a - b (default sorting is fine only for strings).
+rule:
+  kind: call_expression
+  all:
+    - pattern: $ARR.sort()
+    - inside:
+        stopBy: end
+        has:
+          field: return_type
+          regex: number
+fix: $ARR.sort((a, b) => a - b)
+metadata:
+  bugvax:
+    title: Numeric array sorted with .sort() and no comparator
+    learnedAt: 2026-09-23T18:03:46.682Z
+    source:
+      kind: commit
+      commit: 51ed032926707f8a64d87289913c8a0d8d1ab42b
+      subject: "fix: top order totals were sorted as strings"
+      date: 2026-01-29T10:00:00Z
+      files:
+        - src/reports.ts
+      repo: the bugvax demo repository (npx bugvax demo)
+    validation:
+      firesOnBuggy: true
+      silentOnFixed: true
+      headMatches: 1
+      attempts: 3
+      reviewed: true
+      fix: proven

@@ -56,11 +56,11 @@ Just fixed a bug and haven't committed yet? Learn from it right away:
 npx bugvax learn --working -m "crash when the cart is empty"
 ```
 
-No bug history yet? Borrow immunity from projects that already paid for it:
+No bug history yet? Start with a vaccine: validated antibodies for classic bug classes (HTTP calls without a timeout, mutable default arguments, numbers sorted as strings, Express error responses that fall through to `next()`):
 
 ```bash
 npx bugvax vaccinate              # list vaccine packs
-npx bugvax vaccinate <pack>       # install one
+npx bugvax vaccinate starter      # install one, then: npx bugvax scan
 ```
 
 Want to see it work first? The demo shop's history holds 7 bug fixes across TypeScript, React and Python, and 6 of those bugs are still hiding somewhere else in its code:

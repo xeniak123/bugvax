@@ -32,7 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
-      - name: Move the v1 tag used by `uses: xeniak123/bugvax@v1`
+      - name: "Move the v1 tag used by the GitHub Action (xeniak123/bugvax@v1)"
         run: |
           git tag -f v1
           git push -f origin v1

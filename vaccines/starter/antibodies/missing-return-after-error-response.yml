@@ -1,0 +1,47 @@
+# bugvax vaccine: an ast-grep rule learned from a real bug fix.
+id: missing-return-after-error-response
+language: tsx
+severity: error
+message: Error response sent inside an `if` without `return`; execution falls through to next()/the handler.
+note: "In Express middleware, `res.status(4xx).json(...)` does not stop execution: the code after the `if` block (here `next()`) still runs, so unauthorized requests reach the handler and a second response may be attempted. Prefix the response with `return` (or put `next()` in an `else`)."
+rule:
+  all:
+    - kind: expression_statement
+    - has:
+        pattern: $RES.status($CODE).json($$$ARGS)
+    - inside:
+        kind: if_statement
+        stopBy: end
+    - inside:
+        any:
+          - kind: function_declaration
+          - kind: function_expression
+          - kind: arrow_function
+          - kind: method_definition
+        stopBy: end
+        has:
+          pattern: next($$$NARGS)
+          stopBy: end
+constraints:
+  CODE:
+    regex: ^[45][0-9][0-9]$
+fix: return $RES.status($CODE).json($$$ARGS);
+metadata:
+  bugvax:
+    title: Express error response not returned before next()
+    learnedAt: 2026-09-23T18:03:46.233Z
+    source:
+      kind: commit
+      commit: d65ea5a0e25085d969d5d51424b5fbac6c530866
+      subject: "fix: stop calling next() after sending 401"
+      date: 2026-01-14T10:00:00Z
+      files:
+        - src/middleware/auth.ts
+      repo: the bugvax demo repository (npx bugvax demo)
+    validation:
+      firesOnBuggy: true
+      silentOnFixed: true
+      headMatches: 1
+      attempts: 1
+      reviewed: true
+      fix: proven

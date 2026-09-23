@@ -159,7 +159,7 @@ describe("cli", () => {
       expect(scan.stdout).toContain("src/invoices.ts:6");
       await repo.write({ "src/new.ts": "export async function f(db) {\n  db.commit();\n}\n" });
       const hook = await cli(["check", "--hook", "claude-code"], repo.dir, JSON.stringify({ cwd: repo.dir, tool_input: { file_path: join(repo.dir, "src", "new.ts") } }));
-      expect(hook.stderr).toContain('"shop" vaccine: learned from the fix in example/shop@abcdef1');
+      expect(hook.stderr).toContain('"shop" vaccine: learned from the fix "fix: await db commit" in example/shop (abcdef1)');
     } finally {
       await source.cleanup();
       await rm(vaccines, { recursive: true, force: true });

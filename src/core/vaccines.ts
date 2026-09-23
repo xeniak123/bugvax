@@ -23,6 +23,18 @@ export interface Pack extends PackInfo {
   antibodies: RuleDoc[];
 }
 
+export const TEST_GLOBS = [
+  "**/test/**",
+  "**/tests/**",
+  "**/__tests__/**",
+  "**/*.test.*",
+  "**/*.spec.*",
+  "**/test_*.py",
+  "**/*_test.py",
+  "**/conftest.py",
+  "**/*_test.go",
+];
+
 export function vaccinesDir(): string {
   return process.env.BUGVAX_VACCINES_DIR ?? fileURLToPath(new URL("../../vaccines/", import.meta.url));
 }
@@ -78,7 +90,9 @@ export async function vaccinate(store: Store, pack: Pack): Promise<VaccinationRe
       kind: "vaccine",
       pack: pack.name,
     };
-    const saved = await store.save({ ...doc, metadata: { ...(doc.metadata ?? {}), bugvax: { ...(meta ?? {}), source } } });
+    // A vaccine was learned in someone else's code; test code (fixtures, local servers) is mostly noise for it.
+    const ignores = (doc.ignores ?? doc.files) ? {} : { ignores: TEST_GLOBS };
+    const saved = await store.save({ ...doc, ...ignores, metadata: { ...(doc.metadata ?? {}), bugvax: { ...(meta ?? {}), source } } });
     known.add(fingerprint(doc));
     result.added.push(saved);
   }

@@ -1,0 +1,14 @@
+{
+  "name": "starter",
+  "description": "Classic bug classes: HTTP calls without a timeout, mutable default arguments, sorting numbers without a comparator, and Express error responses that fall through to next(). Learned from the bugvax demo repository and checked for false positives on axios, Express, requests and Excalidraw.",
+  "languages": [
+    "python",
+    "tsx"
+  ],
+  "sources": [
+    {
+      "repo": "the bugvax demo repository (npx bugvax demo)",
+      "fixesAnalyzed": 7
+    }
+  ]
+}

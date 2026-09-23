@@ -1,0 +1,38 @@
+# bugvax vaccine: an ast-grep rule learned from a real bug fix.
+id: mutable-default-argument
+language: python
+severity: error
+message: "Mutable default argument: this default list/dict/set is created once and shared by every call"
+note: "Python evaluates default values once at function definition time, so a `[]`, `{}` or `set()` default is reused (and mutated) across all calls, leaking state between callers. Use `None` as the default and build the container inside the body: `def f(x, tags=None): if tags is None: tags = []`."
+rule:
+  any:
+    - kind: default_parameter
+    - kind: typed_default_parameter
+  has:
+    field: value
+    any:
+      - kind: list
+      - kind: dictionary
+      - kind: set
+      - pattern: list()
+      - pattern: dict()
+      - pattern: set()
+metadata:
+  bugvax:
+    title: Mutable default argument shared between calls
+    learnedAt: 2026-09-23T18:03:18.181Z
+    source:
+      kind: commit
+      commit: 35c1f223cacd6509c1b6fb7c8402f9a118a7056c
+      subject: "fix: default tags list was shared between carts"
+      date: 2026-01-17T10:00:00Z
+      files:
+        - app/cart.py
+      repo: the bugvax demo repository (npx bugvax demo)
+    validation:
+      firesOnBuggy: true
+      silentOnFixed: true
+      headMatches: 1
+      attempts: 1
+      reviewed: true
+      fix: none
