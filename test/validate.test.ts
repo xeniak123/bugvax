@@ -4,7 +4,7 @@ import type { RuleDoc } from "../src/core/engine.js";
 import { commitInfo } from "../src/core/git.js";
 import { toCandidate } from "../src/core/mine.js";
 import { sampleFromCandidate, sampleFromWorkingTree, type FixSample } from "../src/core/sample.js";
-import { coveredBy, validate } from "../src/core/validate.js";
+import { coveredBy, proveFix, validate } from "../src/core/validate.js";
 import { GOOD_RULE_YAML, INVOICES, makeRepo, REFUNDS_BUGGY, REFUNDS_FIXED, unawaitedCommitRepo, type TestRepo } from "./helpers.js";
 
 function rule(body: string, id = "unawaited-commit"): RuleDoc {
@@ -67,6 +67,61 @@ describe("validation against real history", () => {
   it("detects that an existing antibody already covers a fix", async () => {
     expect(await coveredBy([rule(GOOD_RULE_YAML)], sample)).toBe("unawaited-commit");
     expect(await coveredBy([rule("rule:\n  pattern: $DB.rollback()\n", "other")], sample)).toBeNull();
+  });
+});
+
+describe("proving auto-fixes on history", () => {
+  let repo: TestRepo;
+  let sample: FixSample;
+
+  beforeAll(async () => {
+    const r = await unawaitedCommitRepo();
+    repo = r.repo;
+    sample = await sampleFromCandidate(repo.dir, toCandidate(await commitInfo(repo.dir, r.fixSha))!);
+  });
+  afterAll(() => repo.cleanup());
+
+  async function prove(fix: string) {
+    const withFix = { ...rule(GOOD_RULE_YAML), fix };
+    const v = await validate(withFix, sample, repo.dir, { maxHeadMatches: 10 });
+    expect(v.ok).toBe(true);
+    return proveFix(withFix, sample, v.buggyHits);
+  }
+
+  it("accepts a template that reproduces the human fix", async () => {
+    expect(await prove("await $DB.commit()")).toMatchObject({ ok: true, fixed: 1 });
+  });
+
+  it("rejects a template that removes the match but differs from the human fix", async () => {
+    const proof = await prove("$DB.commit().catch(() => {})");
+    expect(proof.ok).toBe(false);
+    expect(proof.feedback).toContain("real fix looks different");
+  });
+
+  it("rejects a fix that would need more than a local rewrite (Python mutable default)", async () => {
+    const py = await makeRepo();
+    try {
+      const before = "def add_item(cart, item, tags=[]):\n    tags.append(item.category)\n    cart.tags = tags\n    return cart\n";
+      const after = "def add_item(cart, item, tags=None):\n    if tags is None:\n        tags = []\n    tags.append(item.category)\n    cart.tags = tags\n    return cart\n";
+      await py.commit({ "app/cart.py": before }, "cart");
+      const sha = await py.commit({ "app/cart.py": after }, "fix: shared default tags list");
+      const pySample = await sampleFromCandidate(py.dir, toCandidate(await commitInfo(py.dir, sha))!);
+      const mutable: RuleDoc = {
+        id: "mutable-default",
+        language: "python",
+        severity: "error",
+        message: "mutable default",
+        rule: { kind: "default_parameter", all: [{ has: { field: "name", pattern: "$NAME" } }, { has: { field: "value", kind: "list" } }] },
+        fix: "$NAME=None",
+      };
+      const v = await validate(mutable, pySample, py.dir, { maxHeadMatches: 10 });
+      expect(v.ok).toBe(true);
+      const proof = await proveFix(mutable, pySample, v.buggyHits);
+      expect(proof.ok).toBe(false);
+      expect(proof.feedback).toContain("if tags is None");
+    } finally {
+      await py.cleanup();
+    }
   });
 });
 

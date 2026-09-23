@@ -38,6 +38,8 @@ export interface Match {
   note?: string;
   severity: string;
   metadata?: Record<string, unknown>;
+  /** When the rule has a `fix:` template: the replacement text and the UTF-8 byte range it replaces. */
+  fix?: { text: string; start: number; end: number };
 }
 
 export class EngineError extends Error {}
@@ -113,10 +115,15 @@ interface RawMatch {
   note?: string | null;
   metadata?: Record<string, unknown> | null;
   range: { start: { line: number; column: number }; end: { line: number; column: number } };
+  replacement?: string;
+  replacementOffsets?: { start: number; end: number };
 }
 
 function toMatch(raw: RawMatch): Match {
   return {
+    ...(raw.replacement !== undefined && raw.replacementOffsets
+      ? { fix: { text: raw.replacement, start: raw.replacementOffsets.start, end: raw.replacementOffsets.end } }
+      : {}),
     ruleId: raw.ruleId,
     file: raw.file.replace(/\\/g, "/").replace(/^\.\//, ""),
     line: raw.range.start.line + 1,
@@ -190,6 +197,26 @@ function cleanError(s: string): string {
     .replace(/rules[\\/]r\d+\.yml/g, "<rule>")
     .trim();
   return text.length > 1500 ? text.slice(0, 1500) + "…" : text;
+}
+
+/**
+ * Apply the fixes of the given matches (all in one file) to its content. Matches that overlap an
+ * earlier one are left out; run again to pick them up. Returns the new content and what was applied.
+ */
+export function applyFixes(content: Buffer, matches: Match[]): { content: Buffer; applied: Match[] } {
+  const fixable = matches.filter((m) => m.fix).sort((a, b) => a.fix!.start - b.fix!.start);
+  const applied: Match[] = [];
+  let lastEnd = -1;
+  for (const m of fixable) {
+    if (m.fix!.start < lastEnd) continue;
+    applied.push(m);
+    lastEnd = m.fix!.end;
+  }
+  let out = content;
+  for (const m of [...applied].reverse()) {
+    out = Buffer.concat([out.subarray(0, m.fix!.start), Buffer.from(m.fix!.text, "utf8"), out.subarray(m.fix!.end)]);
+  }
+  return { content: out, applied };
 }
 
 /** Check that a rule compiles, without scanning anything meaningful. Returns an error message or null. */

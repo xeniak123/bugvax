@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "vaccines",
     "scripts/demo-repo.mjs",
     "README.md",
     "LICENSE"
@@ -46,9 +47,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "@ast-grep/cli": "^0.45.3",
+    "@modelcontextprotocol/sdk": "^1.30.1",
     "commander": "^15.0.0",
     "picocolors": "^1.1.1",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

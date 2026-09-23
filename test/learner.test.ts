@@ -98,6 +98,35 @@ describe("learnFromSample", () => {
     expect(await store.antibodies()).toHaveLength(0);
   });
 
+  it("keeps an auto-fix only when it reproduces the real fix, after one repair round", async () => {
+    const { sample, store } = await setup();
+    const llm = new FakeProvider([
+      answer(GOOD_RULE_YAML, { fix: "$DB.commit().catch(() => {})" }), // valid rule, but not the fix that was made
+      { verdicts: [{ index: 1, real_bug: true, reason: "same bug" }] },
+      answer(GOOD_RULE_YAML, { fix: "await $DB.commit()" }),
+    ]);
+    const outcome = await learnFromSample(sample, { root: repo.dir, store, llm, config: { ...DEFAULT_CONFIG }, mutex: new Mutex() });
+    expect(outcome.status).toBe("learned");
+    expect(llm.requests[2].messages.at(-1)!.content).toMatch(/Only the `fix` template failed/);
+    const [saved] = await store.antibodies();
+    expect(saved.doc.fix).toBe("await $DB.commit()");
+    expect((saved.doc.metadata as any).bugvax.validation.fix).toBe("proven");
+  });
+
+  it("drops an auto-fix that cannot be proven", async () => {
+    const { sample, store } = await setup();
+    const llm = new FakeProvider([
+      answer(GOOD_RULE_YAML, { fix: "$DB.commit().catch(() => {})" }),
+      { verdicts: [{ index: 1, real_bug: true, reason: "same bug" }] },
+      answer(GOOD_RULE_YAML, { fix: "" }),
+    ]);
+    const outcome = await learnFromSample(sample, { root: repo.dir, store, llm, config: { ...DEFAULT_CONFIG }, mutex: new Mutex() });
+    expect(outcome.status).toBe("learned");
+    const [saved] = await store.antibodies();
+    expect(saved.doc.fix).toBeUndefined();
+    expect((saved.doc.metadata as any).bugvax.validation.fix).toBe("none");
+  });
+
   it("lets backend outages propagate instead of recording the fix as failed", async () => {
     const { sample, store } = await setup();
     const limited: LLMProvider = {

@@ -26,12 +26,14 @@ When generalizable, write an ast-grep rule that:
 
 The message and note are shown to the developer or AI agent whose code triggers the rule: say concretely what is wrong and how to fix it. The id is short kebab-case naming the bug (e.g. "unawaited-transaction-commit").
 
+Also write \`fix\`: an ast-grep fix template that rewrites the node your rule matches into the corrected code, the way the real fix did. It replaces the whole matched node and may use metavariables captured anywhere in the rule ($X, $$$ARGS), e.g. "await $DB.commit($$$ARGS)", "useEffect($FN, [])", "requests.$M($$$ARGS, timeout=10)". bugvax applies your template to the buggy code and keeps it only if the result matches the human fix, so leave \`fix\` as an empty string when the real fix is not a local rewrite of the matched node (for example it adds lines elsewhere, restructures a function, or depends on context).
+
 ${AST_GREP_REFERENCE()}`;
 
 function AST_GREP_REFERENCE(): string {
   return `# ast-grep rule reference
 
-\`rule_yaml\` must be YAML with a top-level \`rule:\` key and, optionally, \`constraints:\` and \`utils:\`. Do not include id, language, message, severity or note; bugvax adds them.
+\`rule_yaml\` must be YAML with a top-level \`rule:\` key and, optionally, \`constraints:\` and \`utils:\`. Do not include id, language, message, severity, note or fix; bugvax adds them (the fix template goes in the separate \`fix\` field).
 
 ## Atomic rules
 pattern: "code with $META variables"   # parsed as code in the target language
@@ -90,7 +92,7 @@ All JavaScript and TypeScript files are parsed with the TSX grammar, so JS/TS ru
 export const GENERATE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["generalizable", "reason", "id", "title", "message", "note", "severity", "rule_yaml"],
+  required: ["generalizable", "reason", "id", "title", "message", "note", "severity", "rule_yaml", "fix"],
   properties: {
     generalizable: { type: "boolean", description: "false if this fix is not a reusable, syntactically detectable bug pattern" },
     reason: { type: "string", description: "One or two sentences: the bug class, or why it cannot be an antibody" },
@@ -100,6 +102,7 @@ export const GENERATE_SCHEMA = {
     note: { type: "string", description: "1-3 sentences: why it is a bug and how to fix it" },
     severity: { type: "string", enum: ["error", "warning"] },
     rule_yaml: { type: "string", description: "YAML with top-level rule: (and optional constraints:, utils:)" },
+    fix: { type: "string", description: "ast-grep fix template for the matched node, or empty string" },
   },
 } as const;
 
@@ -112,6 +115,7 @@ export interface GenerateResponse {
   note: string;
   severity: "error" | "warning";
   rule_yaml: string;
+  fix?: string;
 }
 
 export function isGenerateResponse(v: unknown): v is GenerateResponse {
@@ -202,6 +206,16 @@ export function reviewPrompt(sample: FixSample, rule: { id: string; message: str
   });
   parts.push("", "For every location give a verdict with its index. Respond with the JSON object only.");
   return parts.join("\n");
+}
+
+export function fixFeedback(problem: string): string {
+  return [
+    "The rule itself is accepted. Only the `fix` template failed the check against the real fix:",
+    "",
+    problem,
+    "",
+    "Return the JSON object again with rule_yaml unchanged and a corrected `fix`, or `fix` set to an empty string if a single template cannot express the real fix.",
+  ].join("\n");
 }
 
 export function falsePositiveFeedback(fps: { match: Match; context: string; reason: string }[]): string {

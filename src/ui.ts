@@ -20,6 +20,7 @@ export function codeLine(s: string, max = 90): string {
 export function provenance(a: Antibody | undefined): string {
   const meta = a ? antibodyMeta(a.doc) : undefined;
   if (!meta) return "";
+  if (meta.source.kind === "vaccine") return `💉 ${meta.source.pack} vaccine`;
   if (meta.source.commit) return `learned from ${meta.source.commit.slice(0, 7)} "${meta.source.subject}"`;
   return `learned from "${meta.source.subject}"`;
 }
@@ -81,6 +82,19 @@ export class Progress {
   }
 }
 
+/** In GitHub Actions, also emit annotations so findings show up inline on the pull request. */
+export function githubAnnotations(matches: Match[], antibodies: Antibody[]): void {
+  if (process.env.GITHUB_ACTIONS !== "true") return;
+  const esc = (s: string) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  const prop = (s: string) => esc(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
+  for (const m of matches) {
+    const a = antibodies.find((x) => x.doc.id === m.ruleId);
+    const level = (a?.doc.severity ?? m.severity) === "warning" ? "warning" : "error";
+    const body = [m.message, a?.doc.note, provenance(a)].filter(Boolean).join("\n");
+    console.log(`::${level} file=${prop(m.file)},line=${m.line},endLine=${m.endLine},title=${prop(`bugvax: ${m.ruleId}`)}::${esc(body)}`);
+  }
+}
+
 /** Print matches grouped by antibody, with where each antibody came from. */
 export function printFindings(matches: Match[], antibodies: Antibody[]): void {
   const byRule = new Map<string, Match[]>();
@@ -90,7 +104,7 @@ export function printFindings(matches: Match[], antibodies: Antibody[]): void {
     const sev = (a?.doc.severity ?? ms[0].severity) === "warning" ? pc.yellow("warning") : pc.red("error");
     console.log(`\n  ${sev} ${pc.bold(ruleId)}  ${pc.dim(provenance(a))}`);
     console.log(`  ${ms[0].message}`);
-    for (const m of ms) console.log(`    ${loc(m)}  ${codeLine(m.lines)}`);
+    for (const m of ms) console.log(`    ${loc(m)}  ${codeLine(m.lines)}${m.fix ? pc.green("  🔧 auto-fix") : ""}`);
     const note = a?.doc.note ?? ms[0].note;
     if (note) console.log(pc.dim(`    ↳ ${firstSentence(note, 160)}`));
   }

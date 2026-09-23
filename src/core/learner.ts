@@ -5,6 +5,7 @@ import type { Mutex } from "../util/proc.js";
 import type { Match, RuleDoc } from "./engine.js";
 import {
   falsePositiveFeedback,
+  fixFeedback,
   GENERATE_SCHEMA,
   GENERATE_SYSTEM,
   generatePrompt,
@@ -17,7 +18,7 @@ import {
 } from "./prompts.js";
 import type { FixSample } from "./sample.js";
 import type { Antibody, AntibodyMeta, Config, Store } from "./store.js";
-import { coveredBy, matchContext, validate } from "./validate.js";
+import { coveredBy, matchContext, proveFix, validate, type FixProof } from "./validate.js";
 
 export type Outcome =
   | { status: "learned"; antibody: Antibody; latent: Match[]; reviewed: boolean; attempts: number }
@@ -52,6 +53,7 @@ export function buildRule(res: GenerateResponse, sample: FixSample, attempts: nu
   let doc = body as Record<string, unknown>;
   if (!("rule" in doc) && Object.keys(doc).some((k) => RULE_KEYS.has(k))) doc = { rule: doc };
   if (!doc.rule || typeof doc.rule !== "object") return { error: "rule_yaml must contain a top-level `rule:` mapping." };
+  const fix = (res.fix ?? "").trim() || (typeof doc.fix === "string" ? doc.fix.trim() : "");
 
   const meta: AntibodyMeta = {
     title: unescapeHtml(res.title || res.id),
@@ -75,6 +77,7 @@ export function buildRule(res: GenerateResponse, sample: FixSample, attempts: nu
     ...(doc.constraints ? { constraints: doc.constraints } : {}),
     ...(doc.utils ? { utils: doc.utils } : {}),
     ...(doc.transform ? { transform: doc.transform } : {}),
+    ...(fix ? { fix } : {}),
     metadata: { bugvax: meta },
   };
   return { rule };
@@ -165,6 +168,14 @@ export async function learnFromSample(sample: FixSample, ctx: LearnContext): Pro
     const meta = (rule.metadata as { bugvax: AntibodyMeta }).bugvax;
     meta.validation.headMatches = v.headMatches.length;
     meta.validation.reviewed = reviewed;
+    meta.validation.fix = "none";
+    if (rule.fix) {
+      step(`attempt ${attempt}: proving the auto-fix on history`);
+      let proof = await proveFix(rule, sample, v.buggyHits);
+      if (!proof.ok) proof = (await repairFix(ctx, sample, rule, messages, proof.feedback ?? "", globs)) ?? proof;
+      if (proof.ok) meta.validation.fix = "proven";
+      else delete rule.fix;
+    }
     return ctx.mutex.lock(async () => {
       // Another worker may have learned the same bug class in the meantime.
       const now = await ctx.store.antibodies();
@@ -175,6 +186,35 @@ export async function learnFromSample(sample: FixSample, ctx: LearnContext): Pro
     });
   }
   return { status: "failed", reason: lastProblem, attempts: ctx.config.maxAttempts };
+}
+
+/** One extra round for a rule whose fix template did not reproduce the real fix. */
+async function repairFix(
+  ctx: LearnContext,
+  sample: FixSample,
+  rule: RuleDoc,
+  messages: ChatMessage[],
+  feedback: string,
+  globs: string[],
+): Promise<FixProof | null> {
+  messages.push({ role: "user", content: fixFeedback(feedback) });
+  let res;
+  try {
+    res = await ctx.llm.completeJSON({ system: GENERATE_SYSTEM, messages, schema: GENERATE_SCHEMA as unknown as Record<string, unknown> });
+  } catch (e) {
+    if (e instanceof LLMError && e.kind === "model") return null;
+    throw e;
+  }
+  if (!isGenerateResponse(res.json)) return null;
+  messages.push({ role: "assistant", content: res.raw });
+  const fix = (res.json.fix ?? "").trim();
+  if (!fix) return null;
+  const candidate: RuleDoc = { ...rule, fix };
+  const v = await validate(candidate, sample, ctx.root, { maxHeadMatches: ctx.config.maxHeadMatches, globs });
+  if (!v.ok) return null;
+  const proof = await proveFix(candidate, sample, v.buggyHits);
+  if (proof.ok) rule.fix = fix;
+  return proof;
 }
 
 async function reviewMatches(

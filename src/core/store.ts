@@ -11,11 +11,14 @@ export interface AntibodyMeta {
   title: string;
   learnedAt: string;
   source: {
-    kind: "commit" | "working-tree";
+    kind: "commit" | "working-tree" | "vaccine";
     commit?: string;
     subject: string;
     date?: string;
     files: string[];
+    /** For vaccines: the pack name and the upstream repository the antibody was learned from. */
+    pack?: string;
+    repo?: string;
   };
   validation: {
     firesOnBuggy: boolean;
@@ -23,6 +26,8 @@ export interface AntibodyMeta {
     headMatches: number;
     attempts: number;
     reviewed: boolean;
+    /** "proven": the rule's fix template reproduces the real fix on history. */
+    fix?: "proven" | "none";
   };
 }
 

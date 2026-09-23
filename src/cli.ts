@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
 import { Command, Option } from "commander";
-import { checkCommand } from "./commands/check.js";
+import { checkCommand, HOOK_TYPES } from "./commands/check.js";
+import { exportPackCommand, vaccinateCommand } from "./commands/vaccinate.js";
+import { startMcpServer } from "./mcp.js";
 import { demoCommand } from "./commands/demo.js";
+import { fixCommand } from "./commands/fix.js";
 import { initCommand } from "./commands/init.js";
 import { learnCommand } from "./commands/learn.js";
 import { listCommand } from "./commands/list.js";
@@ -19,7 +22,11 @@ const program = new Command()
 program
   .command("init")
   .description("create .bugvax/ and optionally install hooks")
-  .option("--claude-code", "add a Claude Code hook that checks every file the agent edits")
+  .option("--claude-code", "Claude Code hook: check every file the agent edits")
+  .option("--cursor", "Cursor hook: check the agent's changes before it finishes")
+  .option("--gemini", "Gemini CLI hook: check every file the agent writes")
+  .option("--codex", "Codex hook: check every patch the agent applies")
+  .option("--mcp", "register the bugvax MCP server for Claude Code and Cursor")
   .option("--git-hook", "add a git pre-commit hook that blocks known bugs")
   .addOption(new Option("--command <cmd>", "command the hooks run").default(undefined).hideHelp())
   .action(async (opts) => exit(await initCommand(opts)));
@@ -57,15 +64,46 @@ program
   .option("--staged", "check staged changes (pre-commit)")
   .option("--base <ref>", "check changes since the merge base with <ref> (CI), e.g. origin/main")
   .option("--all-lines", "report matches anywhere in changed files, not only on changed lines")
-  .option("--hook <type>", "run as an agent hook (claude-code): read the edit from stdin, exit 2 to send feedback")
+  .addOption(new Option("--hook <agent>", "run as an agent hook: read the edit from stdin and hand findings back to the agent").choices([...HOOK_TYPES]))
   .option("--json", "machine-readable output")
   .action(async (files, opts) => exit(await checkCommand(files, opts)));
+
+program
+  .command("fix")
+  .description("repair every finding whose antibody has a proven auto-fix")
+  .argument("[paths...]", "files or directories to fix (default: whole repo)")
+  .option("--dry-run", "show the changes without writing them")
+  .option("--json", "machine-readable output")
+  .action(async (paths, opts) => exit(await fixCommand(paths, opts)));
 
 program
   .command("list")
   .description("list antibodies")
   .option("--json", "machine-readable output")
   .action(async (opts) => exit(await listCommand(opts)));
+
+program
+  .command("vaccinate")
+  .description("install vaccine packs: antibodies learned from public projects' bug fixes (no args: list packs)")
+  .argument("[packs...]", "pack names, e.g. react python")
+  .action(async (packs) => exit(await vaccinateCommand(packs)));
+
+program
+  .command("export-pack", { hidden: true })
+  .description("maintainers: export this repository's antibodies as a vaccine pack")
+  .argument("<name>", "pack name")
+  .requiredOption("--out <dir>", "pack directory, e.g. ../bugvax/vaccines/react")
+  .requiredOption("--repo <url>", "upstream repository URL the antibodies were learned from")
+  .option("--description <text>", "one-line pack description")
+  .option("--fixes <n>", "how many bug fixes were analyzed")
+  .action(async (name, opts) => exit(await exportPackCommand(name, opts)));
+
+program
+  .command("mcp")
+  .description("run the bugvax MCP server over stdio (check_code, bug_history, scan, fix, learn_from_fix)")
+  .action(async () => {
+    await startMcpServer();
+  });
 
 program
   .command("demo")

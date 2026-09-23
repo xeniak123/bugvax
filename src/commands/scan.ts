@@ -1,7 +1,7 @@
 import { scan } from "../core/engine.js";
 import { repoRoot } from "../core/git.js";
 import { Store } from "../core/store.js";
-import { header, pc, plural, printFindings } from "../ui.js";
+import { githubAnnotations, header, pc, plural, printFindings } from "../ui.js";
 
 export async function scanCommand(paths: string[], opts: { json?: boolean }): Promise<number> {
   const root = await repoRoot(process.cwd());
@@ -25,7 +25,11 @@ export async function scanCommand(paths: string[], opts: { json?: boolean }): Pr
     return 0;
   }
   printFindings(matches, antibodies);
+  githubAnnotations(matches, antibodies);
   const files = new Set(matches.map((m) => m.file)).size;
-  console.log(`\n  ${pc.bold(pc.yellow(plural(matches.length, "finding")))} in ${plural(files, "file")}\n`);
+  const fixable = matches.filter((m) => m.fix).length;
+  console.log(`\n  ${pc.bold(pc.yellow(plural(matches.length, "finding")))} in ${plural(files, "file")}`);
+  if (fixable) console.log(`  ${pc.green(`🔧 ${fixable} can be fixed automatically:`)} ${pc.bold("bugvax fix")} ${pc.dim("(or --dry-run to preview)")}`);
+  console.log();
   return 1;
 }

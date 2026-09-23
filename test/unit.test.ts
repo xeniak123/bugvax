@@ -5,6 +5,7 @@ import { buildRule, slug } from "../src/core/learner.js";
 import { findCandidates, scoreMessage } from "../src/core/mine.js";
 import { mergeRanges, windows } from "../src/core/snippets.js";
 import { classifyError, extractJSON } from "../src/llm/types.js";
+import { patchFiles } from "../src/commands/check.js";
 import type { FixSample } from "../src/core/sample.js";
 
 describe("git parsing", () => {
@@ -82,6 +83,25 @@ describe("snippets", () => {
     expect(mergeRanges([[5, 7], [1, 2], [8, 9]])).toEqual([[1, 2], [5, 9]]);
     const out = windows("a\nb\nc\nd\ne", [[3, 3]], 1);
     expect(out).toBe("  2| b\n> 3| c\n  4| d");
+  });
+});
+
+describe("agent hooks", () => {
+  it("reads the files touched by a Codex apply_patch", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Update File: src/a.ts",
+      "@@",
+      "-x",
+      "+y",
+      "*** Add File: src/new.py",
+      "+print(1)",
+      "*** Update File: src/old.ts",
+      "*** Move to: src/moved.ts",
+      "*** Delete File: src/gone.ts",
+      "*** End Patch",
+    ].join("\n");
+    expect(patchFiles(patch)).toEqual(["src/a.ts", "src/new.py", "src/old.ts", "src/moved.ts"]);
   });
 });
 

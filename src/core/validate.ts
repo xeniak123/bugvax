@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { EngineError, scan, type Match, type RuleDoc } from "./engine.js";
-import { newRange, oldRange, overlaps } from "./git.js";
+import { run } from "../util/proc.js";
+import { applyFixes, EngineError, scan, type Match, type RuleDoc } from "./engine.js";
+import { newRange, oldRange, overlaps, parseHunks, type Hunk } from "./git.js";
 import type { FixSample } from "./sample.js";
 import { windows } from "./snippets.js";
 
@@ -131,6 +132,80 @@ function explainTooBroad(head: Match[], max: number): string {
 function oneLine(s: string): string {
   const t = s.trim().replace(/\s+/g, " ");
   return t.length > 140 ? t.slice(0, 140) + "…" : t;
+}
+
+export interface FixProof {
+  ok: boolean;
+  /** How many buggy sites the template rewrote. */
+  fixed: number;
+  feedback?: string;
+}
+
+/**
+ * An auto-fix is only kept if it is proven on history: applying the rule's `fix:` template to the
+ * buggy code must reproduce what the human fix actually did at those lines (whitespace aside), and
+ * the rule must no longer match there. A template that "removes the match" but differs from the
+ * real fix (e.g. `tags=[]` -> `tags=None` without the `if tags is None` guard) is rejected.
+ */
+export async function proveFix(rule: RuleDoc, sample: FixSample, buggyHits: Match[]): Promise<FixProof> {
+  const hits = buggyHits.filter((m) => m.fix);
+  if (!hits.length) return { ok: false, fixed: 0, feedback: "The fix template produced no replacement for the buggy code." };
+  const dir = await mkdtemp(join(tmpdir(), "bugvax-fix-"));
+  try {
+    const problems: string[] = [];
+    const fixedRanges = new Map<string, [number, number][]>();
+    let fixed = 0;
+    for (const f of sample.files) {
+      const fileHits = hits.filter((m) => m.file === f.path);
+      if (!fileHits.length) continue;
+      const { content, applied } = applyFixes(Buffer.from(f.before, "utf8"), fileHits);
+      fixed += applied.length;
+      const fixedBefore = content.toString("utf8");
+      const paths = Object.fromEntries(
+        (["before", "fixed", "after"] as const).map((side) => [side, join(dir, side, f.path)]),
+      ) as Record<"before" | "fixed" | "after", string>;
+      for (const [side, text] of [["before", f.before], ["fixed", fixedBefore], ["after", f.after]] as const) {
+        await mkdir(dirname(paths[side]), { recursive: true });
+        await writeFile(paths[side], text);
+      }
+      const changes = (await noIndexHunks(paths.before, paths.fixed)).map((h) => newRange(h, 1));
+      fixedRanges.set(f.path, changes);
+      const residual = (await noIndexHunks(paths.fixed, paths.after)).filter((h) => changes.some((r) => overlaps(oldRange(h), r)));
+      if (residual.length) {
+        problems.push(
+          `${f.path}: your fix template turns the buggy code into this (changed lines marked >):`,
+          "```",
+          windows(fixedBefore, changes.map(([a, b]) => [a + 1, b - 1] as [number, number]), 3, 40),
+          "```",
+          "but the real fix looks different there:",
+          "```",
+          windows(f.after, residual.map((h) => newRange(h)), 3, 40),
+          "```",
+        );
+      }
+    }
+    if (!fixed) return { ok: false, fixed: 0, feedback: "The fix template did not change the buggy code." };
+    if (problems.length) return { ok: false, fixed, feedback: problems.join("\n") };
+
+    // The rewritten code must not trigger the rule again at the rewritten lines.
+    const { fix: _fix, ...plain } = rule;
+    const again = await scan([plain as RuleDoc], ["fixed"], dir);
+    const still = again.filter((m) => {
+      const path = m.file.replace(/^fixed\//, "");
+      return fixedRanges.get(path)?.some((r) => overlaps([m.line, m.endLine], r));
+    });
+    if (still.length) return { ok: false, fixed, feedback: "After applying the fix template, the rule still matches the rewritten code." };
+    return { ok: true, fixed };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Zero-context hunks between two files, ignoring whitespace. */
+async function noIndexHunks(a: string, b: string): Promise<Hunk[]> {
+  const res = await run("git", ["diff", "--no-index", "--no-color", "-U0", "-w", "--ignore-cr-at-eol", "--", a, b]);
+  if (res.code > 1) throw new Error(`git diff --no-index failed: ${res.stderr.trim()}`);
+  return [...parseHunks(res.stdout).values()].flat();
 }
 
 /** The id of an existing antibody that already catches this sample's bug, if any. */

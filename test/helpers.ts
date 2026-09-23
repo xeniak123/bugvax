@@ -1,7 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import YAML from "yaml";
 import { git } from "../src/core/git.js";
+import { Store } from "../src/core/store.js";
 
 export interface TestRepo {
   dir: string;
@@ -86,3 +88,29 @@ export const GOOD_RULE_YAML = `rule:
         - kind: await_expression
         - kind: return_statement
 `;
+
+/** A repo with the fixed refunds.ts, the still-buggy invoices.ts, and a stored antibody for the bug. */
+export async function repoWithAntibody(fix?: string): Promise<TestRepo> {
+  const repo = await makeRepo();
+  await repo.commit({ "src/refunds.ts": REFUNDS_FIXED, "src/invoices.ts": INVOICES }, "shop");
+  const store = new Store(repo.dir);
+  await store.init();
+  await store.save({
+    id: "unawaited-db-commit",
+    language: "tsx",
+    severity: "error",
+    message: "db.commit() is not awaited",
+    note: "Await the commit so failures propagate.",
+    ...YAML.parse(GOOD_RULE_YAML),
+    ...(fix ? { fix } : {}),
+    metadata: {
+      bugvax: {
+        title: "Unawaited db.commit()",
+        learnedAt: "",
+        source: { kind: "commit", commit: "abcdef1234", subject: "fix: await db commit", files: ["src/refunds.ts"] },
+        validation: {},
+      },
+    },
+  });
+  return repo;
+}
