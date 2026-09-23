@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { newRange, oldRange, overlaps, parseHunks, parseLog } from "../src/core/git.js";
 import { isTestFile, languageOf } from "../src/core/languages.js";
 import { buildRule, slug } from "../src/core/learner.js";
-import { findCandidates, scoreMessage } from "../src/core/mine.js";
+import { findCandidates, likelyFixes, scoreMessage } from "../src/core/mine.js";
 import { mergeRanges, windows } from "../src/core/snippets.js";
 import { classifyError, extractJSON } from "../src/llm/types.js";
 import { patchFiles } from "../src/commands/check.js";
@@ -53,6 +53,18 @@ describe("bug-fix detection", () => {
     expect(scoreMessage("docs: fix link", "")).toBe(0);
     expect(scoreMessage("Revert \"fix: thing\"", "")).toBe(0);
     expect(scoreMessage("add dark mode", "")).toBeLessThan(1.5);
+  });
+
+  it("pre-filters the history by message and paths before reading any file contents", () => {
+    const base = { short: "x", body: "" };
+    const heads = [
+      { ...base, sha: "1", date: "2026-01-01", subject: "fix: null check", paths: ["src/a.ts", "src/a.test.ts"] },
+      { ...base, sha: "2", date: "2026-01-02", subject: "fix: flaky test", paths: ["test/a.test.ts"] },
+      { ...base, sha: "3", date: "2026-01-03", subject: "add dark mode", paths: ["src/theme.ts"] },
+      { ...base, sha: "4", date: "2026-01-04", subject: "Fix crash on empty cart", paths: ["app/cart.py"] },
+      { ...base, sha: "5", date: "2026-01-05", subject: "fix typo in docs", paths: ["src/b.ts"] },
+    ];
+    expect(likelyFixes(heads).map((h) => h.sha)).toEqual(["4", "1"]);
   });
 
   it("keeps small source fixes and drops test-only or huge commits", () => {

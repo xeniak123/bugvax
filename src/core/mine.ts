@@ -1,4 +1,4 @@
-import type { CommitInfo, FileStat } from "./git.js";
+import type { CommitHead, CommitInfo, FileStat } from "./git.js";
 import { isTestFile, isVendoredOrGenerated, languageOf, type LanguageInfo } from "./languages.js";
 
 export interface Candidate {
@@ -90,6 +90,18 @@ export function toCandidate(commit: CommitInfo, opts: MineOptions = DEFAULT_MINE
     testFiles: tests.filter((t) => languageOf(t.path)?.id === primary.lang.id),
     changedLines: primary.lines,
   };
+}
+
+/**
+ * Cheap first pass over the history: commits whose message says "bug fix" and that touch at least
+ * one supported source file. Best message scores first, newer first on ties.
+ */
+export function likelyFixes(heads: CommitHead[]): CommitHead[] {
+  return heads
+    .map((h) => ({ h, score: scoreMessage(h.subject, h.body) }))
+    .filter(({ h, score }) => score >= 1.5 && h.paths.some((p) => languageOf(p) && !isTestFile(p) && !isVendoredOrGenerated(p)))
+    .sort((a, b) => b.score - a.score || b.h.date.localeCompare(a.h.date))
+    .map(({ h }) => h);
 }
 
 /** Rank likely bug-fix commits: best candidates first, newer first on ties. */

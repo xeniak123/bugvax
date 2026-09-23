@@ -1,6 +1,6 @@
-import { commitInfo, hasParent, listCommits, repoRoot } from "../core/git.js";
+import { commitInfo, hasParent, listCommits, repoRoot, withStats } from "../core/git.js";
 import { learnFromSample, type Outcome } from "../core/learner.js";
-import { DEFAULT_MINE, findCandidates, toCandidate, type Candidate } from "../core/mine.js";
+import { DEFAULT_MINE, findCandidates, likelyFixes, toCandidate, type Candidate } from "../core/mine.js";
 import { sampleFromCandidate, sampleFromWorkingTree, type FixSample } from "../core/sample.js";
 import { Store, type Config } from "../core/store.js";
 import { createProvider, LLMError, type Effort, type LLMProvider } from "../llm/index.js";
@@ -59,20 +59,30 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
       jobs.push(jobFor(root, cand));
     }
   } else {
-    const commits = await listCommits(root, { maxCount: Number(opts.maxCommits), since: opts.since });
-    const all = findCandidates(commits, { ...DEFAULT_MINE, maxLines: Number(opts.maxLines) });
-    const fresh = all.filter((c) => {
-      const s = state.commits[c.commit.sha];
+    const heads = await listCommits(root, { maxCount: Number(opts.maxCommits), since: opts.since });
+    const likely = likelyFixes(heads);
+    const fresh = likely.filter((h) => {
+      const s = state.commits[h.sha];
       return !s || (opts.retry && s.status === "failed");
     });
+    // Line stats need file contents, so fetch them batch by batch for the most promising commits only.
+    const limit = Number(opts.limit);
+    const mineOpts = { ...DEFAULT_MINE, maxLines: Number(opts.maxLines) };
+    const batch = Math.max(limit * 2, 20);
+    const ranked: Candidate[] = [];
+    for (let i = 0; i < fresh.length && ranked.length < limit * 2; i += batch) {
+      const enriched = await mapLimit(fresh.slice(i, i + batch), 8, (h) => withStats(root, h));
+      ranked.push(...findCandidates(enriched, mineOpts));
+    }
+    ranked.sort((a, b) => b.score - a.score || b.commit.date.localeCompare(a.commit.date));
     const picked: Candidate[] = [];
-    for (const c of fresh) {
-      if (picked.length >= Number(opts.limit)) break;
+    for (const c of ranked) {
+      if (picked.length >= limit) break;
       if (await hasParent(root, c.commit.sha)) picked.push(c);
     }
     console.log(
-      `  ${plural(commits.length, "commit")} scanned · ${plural(all.length, "likely bug fix", "likely bug fixes")} · ` +
-        `${all.length - fresh.length} already analyzed · ${pc.bold(`analyzing ${picked.length}`)}`,
+      `  ${plural(heads.length, "commit")} scanned · ${plural(likely.length, "likely bug fix", "likely bug fixes")} · ` +
+        `${likely.length - fresh.length} already analyzed · ${pc.bold(`analyzing ${picked.length}`)}`,
     );
     if (opts.dryRun) {
       for (const c of picked) {

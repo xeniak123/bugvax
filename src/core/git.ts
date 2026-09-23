@@ -72,8 +72,21 @@ export async function repoRoot(cwd: string): Promise<string> {
 const RS = "\x1e";
 const US = "\x1f";
 
-/** Non-merge commits, newest first, with per-file line stats for modified files only. */
-export async function listCommits(cwd: string, opts: { maxCount: number; since?: string }): Promise<CommitInfo[]> {
+/** A commit from the cheap history listing: message and modified paths, no line stats yet. */
+export interface CommitHead {
+  sha: string;
+  short: string;
+  date: string;
+  subject: string;
+  body: string;
+  paths: string[];
+}
+
+/**
+ * Non-merge commits, newest first, with the paths of modified files. Uses only trees (no file
+ * contents), so it stays fast on huge histories and on partial ("blobless") clones.
+ */
+export async function listCommits(cwd: string, opts: { maxCount: number; since?: string }): Promise<CommitHead[]> {
   const args = [
     "log",
     "--no-merges",
@@ -81,12 +94,42 @@ export async function listCommits(cwd: string, opts: { maxCount: number; since?:
     "--diff-filter=M",
     `--max-count=${opts.maxCount}`,
     `--format=${RS}%H${US}%h${US}%aI${US}%s${US}%b${US}`,
-    "--numstat",
+    "--name-only",
   ];
   if (opts.since) args.push(`--since=${opts.since}`);
   const out = await gitMaybe(cwd, args);
   if (out === null) return []; // e.g. empty repository
-  return parseLog(out);
+  return parseLogHeads(out);
+}
+
+export function parseLogHeads(out: string): CommitHead[] {
+  const heads: CommitHead[] = [];
+  for (const chunk of out.split(RS)) {
+    if (!chunk.trim()) continue;
+    const parts = chunk.split(US);
+    if (parts.length < 6) continue;
+    const [sha, short, date, subject, body, rest] = parts;
+    const paths = rest.split("\n").map((l) => l.trim()).filter(Boolean);
+    heads.push({ sha: sha.trim(), short: short.trim(), date: date.trim(), subject: subject.trim(), body: body.trim(), paths });
+  }
+  return heads;
+}
+
+/** Per-file line stats of one commit's modified files. Reads file contents, so call it only for promising commits. */
+export async function withStats(cwd: string, head: CommitHead): Promise<CommitInfo> {
+  const out = await git(cwd, ["show", "--no-renames", "--diff-filter=M", "--numstat", "--format=", head.sha]);
+  const { paths: _paths, ...rest } = head;
+  return { ...rest, files: parseNumstat(out) };
+}
+
+function parseNumstat(out: string): FileStat[] {
+  const files: FileStat[] = [];
+  for (const line of out.split("\n")) {
+    const m = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line.trim());
+    if (!m || m[1] === "-") continue; // binary
+    files.push({ path: m[3], added: Number(m[1]), deleted: Number(m[2]) });
+  }
+  return files;
 }
 
 export function parseLog(out: string): CommitInfo[] {
@@ -96,14 +139,7 @@ export function parseLog(out: string): CommitInfo[] {
     const parts = chunk.split(US);
     if (parts.length < 6) continue;
     const [sha, short, date, subject, body, rest] = parts;
-    const files: FileStat[] = [];
-    for (const line of rest.split("\n")) {
-      const m = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line.trim());
-      if (!m) continue;
-      if (m[1] === "-") continue; // binary
-      files.push({ path: m[3], added: Number(m[1]), deleted: Number(m[2]) });
-    }
-    commits.push({ sha: sha.trim(), short: short.trim(), date: date.trim(), subject: subject.trim(), body: body.trim(), files });
+    commits.push({ sha: sha.trim(), short: short.trim(), date: date.trim(), subject: subject.trim(), body: body.trim(), files: parseNumstat(rest) });
   }
   return commits;
 }
