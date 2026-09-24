@@ -428,8 +428,21 @@ export function initHero(canvas, opts) {
     renderer.setAnimationLoop(null);
   }
 
+  // When the field changes size (window resize, a pane opening), spread the specimen to fill it
+  // instead of leaving everything where the old bounds were.
   new ResizeObserver(() => {
+    const [oldW, oldH] = [viewW, viewH];
     measure();
+    if (oldW > 0 && oldH > 0 && (Math.abs(viewW / oldW - 1) > 0.02 || Math.abs(viewH / oldH - 1) > 0.02)) {
+      for (const a of ab) {
+        a.pos.x *= viewW / oldW;
+        a.pos.y *= viewH / oldH;
+      }
+      for (const bug of bugs) {
+        bug.pos.x *= viewW / oldW;
+        bug.pos.y *= viewH / oldH;
+      }
+    }
     if (!running) step(0);
   }).observe(canvas);
 

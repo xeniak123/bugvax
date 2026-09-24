@@ -1,0 +1,11 @@
+{
+  "name": "bugvax",
+  "owner": { "name": "xeniak123", "url": "https://github.com/xeniak123" },
+  "plugins": [
+    {
+      "name": "bugvax",
+      "source": "./plugin",
+      "description": "Keeps Claude from re-introducing bugs your repository already fixed."
+    }
+  ]
+}

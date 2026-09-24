@@ -1,0 +1,265 @@
+{
+  "model": "sonnet",
+  "trials": 2,
+  "antibodies": [
+    "missing-return-after-error-response",
+    "mutable-default-argument",
+    "numeric-sort-without-comparator",
+    "requests-call-without-timeout",
+    "unawaited-db-commit",
+    "use-effect-missing-dependency-array"
+  ],
+  "summary": {
+    "baseline": {
+      "runs": 12,
+      "completed": 12,
+      "runsWithKnownBug": 2,
+      "knownBugs": 2,
+      "tampered": 0,
+      "avgSeconds": 19,
+      "costUsd": 1.31
+    }
+  },
+  "results": [
+    {
+      "task": "owner-middleware",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/middleware/owner.ts"
+      ],
+      "seconds": 15,
+      "turns": 5,
+      "costUsd": 0.19961580000000004,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "task": "refund-invoice",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/invoices.ts"
+      ],
+      "seconds": 18,
+      "turns": 3,
+      "costUsd": 0.1884834,
+      "error": null,
+      "diff": "diff --git a/src/invoices.ts b/src/invoices.ts\nindex 4c44f1a..79f7c17 100644\n--- a/src/invoices.ts\n+++ b/src/invoices.ts\n@@ -11,3 +11,9 @@ export async function markPaid(id: string) {\n   invoice.status = \"paid\";\n   await db.commit();\n }\n+\n+export async function refundInvoice(id: string) {\n+  const invoice = await db.invoices.find(id);\n+  invoice.status = \"refunded\";\n+  await db.commit();\n+}\n"
+    },
+    {
+      "task": "favorites",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/wishlist.py"
+      ],
+      "seconds": 19,
+      "turns": 3,
+      "costUsd": 0.19282239999999998,
+      "error": null,
+      "diff": "diff --git a/app/wishlist.py b/app/wishlist.py\nindex e54803b..4813380 100644\n--- a/app/wishlist.py\n+++ b/app/wishlist.py\n@@ -5,3 +5,11 @@ def add_to_wishlist(user, item: Item, notes={}):\n     notes[item.name] = \"added\"\n     user.wishlist.append(item)\n     return notes\n+\n+\n+def add_to_favorites(user, item: Item, labels=None):\n+    if labels is None:\n+        labels = {}\n+    labels[item.name] = \"added\"\n+    user.favorites.append(item)\n+    return labels\n"
+    },
+    {
+      "task": "refund-charge",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 1,
+      "targetReintroduced": true,
+      "findings": [
+        {
+          "rule": "requests-call-without-timeout",
+          "at": "app/payments.py:13",
+          "code": "resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\")"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/payments.py"
+      ],
+      "seconds": 15,
+      "turns": 3,
+      "costUsd": 0.0763612,
+      "error": null,
+      "diff": "diff --git a/app/payments.py b/app/payments.py\nindex e03be3e..a2f7657 100644\n--- a/app/payments.py\n+++ b/app/payments.py\n@@ -7,3 +7,9 @@ def charge(amount_cents: int, token: str) -> str:\n     resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token})\n     resp.raise_for_status()\n     return resp.json()[\"id\"]\n+\n+\n+def refund(charge_id: str) -> str:\n+    resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\")\n+    resp.raise_for_status()\n+    return resp.json()[\"id\"]\n"
+    },
+    {
+      "task": "top-refunds",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/leaderboard.ts"
+      ],
+      "seconds": 17,
+      "turns": 3,
+      "costUsd": 0.0809666,
+      "error": null,
+      "diff": "diff --git a/src/leaderboard.ts b/src/leaderboard.ts\nindex 2654e22..2d211fe 100644\n--- a/src/leaderboard.ts\n+++ b/src/leaderboard.ts\n@@ -2,6 +2,10 @@ export function rankScores(scores: number[]): number[] {\n   return scores.sort().reverse();\n }\n \n+export function topRefundAmounts(amounts: number[], n = 5): number[] {\n+  return [...amounts].sort((a, b) => b - a).slice(0, n);\n+}\n+\n export function sortedPlayerNames(names: string[]): string[] {\n   return names.sort();\n }\n"
+    },
+    {
+      "task": "refund-invoice",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/invoices.ts"
+      ],
+      "seconds": 14,
+      "turns": 3,
+      "costUsd": 0.0734712,
+      "error": null,
+      "diff": "diff --git a/src/invoices.ts b/src/invoices.ts\nindex 4c44f1a..79f7c17 100644\n--- a/src/invoices.ts\n+++ b/src/invoices.ts\n@@ -11,3 +11,9 @@ export async function markPaid(id: string) {\n   invoice.status = \"paid\";\n   await db.commit();\n }\n+\n+export async function refundInvoice(id: string) {\n+  const invoice = await db.invoices.find(id);\n+  invoice.status = \"refunded\";\n+  await db.commit();\n+}\n"
+    },
+    {
+      "task": "owner-middleware",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/middleware/owner.ts"
+      ],
+      "seconds": 12,
+      "turns": 5,
+      "costUsd": 0.08478800000000002,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "task": "payment-list",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/components/PaymentList.tsx"
+      ],
+      "seconds": 43,
+      "turns": 5,
+      "costUsd": 0.09485260000000001,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "task": "favorites",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/wishlist.py"
+      ],
+      "seconds": 17,
+      "turns": 3,
+      "costUsd": 0.0780798,
+      "error": null,
+      "diff": "diff --git a/app/wishlist.py b/app/wishlist.py\nindex e54803b..4813380 100644\n--- a/app/wishlist.py\n+++ b/app/wishlist.py\n@@ -5,3 +5,11 @@ def add_to_wishlist(user, item: Item, notes={}):\n     notes[item.name] = \"added\"\n     user.wishlist.append(item)\n     return notes\n+\n+\n+def add_to_favorites(user, item: Item, labels=None):\n+    if labels is None:\n+        labels = {}\n+    labels[item.name] = \"added\"\n+    user.favorites.append(item)\n+    return labels\n"
+    },
+    {
+      "task": "refund-charge",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 1,
+      "targetReintroduced": true,
+      "findings": [
+        {
+          "rule": "requests-call-without-timeout",
+          "at": "app/payments.py:13",
+          "code": "resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\")"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/payments.py"
+      ],
+      "seconds": 19,
+      "turns": 3,
+      "costUsd": 0.07520879999999999,
+      "error": null,
+      "diff": "diff --git a/app/payments.py b/app/payments.py\nindex e03be3e..a2f7657 100644\n--- a/app/payments.py\n+++ b/app/payments.py\n@@ -7,3 +7,9 @@ def charge(amount_cents: int, token: str) -> str:\n     resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token})\n     resp.raise_for_status()\n     return resp.json()[\"id\"]\n+\n+\n+def refund(charge_id: str) -> str:\n+    resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\")\n+    resp.raise_for_status()\n+    return resp.json()[\"id\"]\n"
+    },
+    {
+      "task": "payment-list",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/components/PaymentList.tsx"
+      ],
+      "seconds": 16,
+      "turns": 6,
+      "costUsd": 0.0864588,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "task": "top-refunds",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "targetReintroduced": false,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/leaderboard.ts"
+      ],
+      "seconds": 18,
+      "turns": 3,
+      "costUsd": 0.08054460000000001,
+      "error": null,
+      "diff": "diff --git a/src/leaderboard.ts b/src/leaderboard.ts\nindex 2654e22..8cb8c65 100644\n--- a/src/leaderboard.ts\n+++ b/src/leaderboard.ts\n@@ -5,3 +5,10 @@ export function rankScores(scores: number[]): number[] {\n export function sortedPlayerNames(names: string[]): string[] {\n   return names.sort();\n }\n+\n+export function topRefundAmounts(amounts: number[], n = 5): number[] {\n+  return amounts\n+    .slice()\n+    .sort((a, b) => b - a)\n+    .slice(0, n);\n+}\n"
+    }
+  ]
+}
