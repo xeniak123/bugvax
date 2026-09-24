@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -87,6 +88,28 @@ describe("agent sessions", () => {
     const msg = JSON.parse(stop.stdout).followup_message as string;
     expect(msg).toContain("src/refunds.ts:6");
     expect(msg).not.toContain("wip.ts");
+  });
+
+  it("works when the session runs in a folder that holds the repository", async () => {
+    repo = await repoWithAntibody("await $DB.commit()");
+    const parent = await mkdtemp(join(tmpdir(), "bugvax-parent-"));
+    try {
+      const shop = join(parent, "shop");
+      await cp(repo.dir, shop, { recursive: true });
+      const session = { session_id: newSession(), cwd: parent };
+      const ctx = await cli(["context", "--hook", "claude-code"], parent, JSON.stringify(session));
+      expect(ctx.stdout).toContain("the repository in shop/");
+      expect(ctx.stdout).toContain("shop/src/invoices.ts:6 [unawaited-db-commit]");
+      await writeFile(join(shop, "src", "refunds.ts"), REINTRODUCED);
+      const edit = await cli(["check", "--hook", "claude-code"], parent, JSON.stringify({ ...session, tool_name: "Edit", tool_input: { file_path: join(shop, "src", "refunds.ts") } }));
+      expect(edit.code).toBe(2);
+      expect(edit.stderr).toContain("shop/src/refunds.ts:6");
+      const stop = await cli(["check", "--hook", "claude-code-stop"], parent, JSON.stringify(session));
+      expect(stop.code).toBe(2);
+      expect(stop.stderr).toContain("shop/src/refunds.ts:6");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
   });
 
   it("init --claude-code installs the briefing, both checks and the skill", async () => {

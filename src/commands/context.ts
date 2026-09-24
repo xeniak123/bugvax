@@ -1,6 +1,6 @@
 import { historyLine, oneLine } from "../agent.js";
 import { scan, type Match } from "../core/engine.js";
-import { repoRoot } from "../core/git.js";
+import { displayPrefix, sessionRoots } from "../core/git.js";
 import { languageById } from "../core/languages.js";
 import { antibodyMeta, Store, type Antibody } from "../core/store.js";
 import { excludeGlobs, readHookInput, recordSessionStart } from "./check.js";
@@ -26,22 +26,24 @@ export async function contextCommand(opts: ContextOptions): Promise<number> {
     cwd = input.cwd ?? cwd;
     sessionId = input.session_id;
   }
-  let root: string;
-  try {
-    root = await repoRoot(cwd);
-  } catch (e) {
+  const roots = await sessionRoots(cwd);
+  if (!roots.length) {
     if (opts.hook) return 0; // not a git repository: nothing to say, never break the session
-    throw e;
+    throw new Error("Not inside a git repository. bugvax learns from git history, so run it inside a repo.");
   }
-  const store = new Store(root);
-  const antibodies = await store.antibodies().catch((e: Error) => {
-    if (opts.hook) return [] as Antibody[];
-    throw e;
-  });
-  if (opts.hook) await recordSessionStart(root, sessionId).catch(() => {});
-  if (!antibodies.length) return 0;
-  const latent = await withBudget(scan(antibodies.map((a) => a.doc), ["."], root, { globs: await excludeGlobs(store) }), SCAN_BUDGET_MS);
-  console.log(briefing(antibodies, latent, { hooked: Boolean(opts.hook) }));
+  const parts: string[] = [];
+  for (const root of roots) {
+    const store = new Store(root);
+    const antibodies = await store.antibodies().catch((e: Error) => {
+      if (opts.hook) return [] as Antibody[];
+      throw e;
+    });
+    if (opts.hook) await recordSessionStart(root, sessionId).catch(() => {});
+    if (!antibodies.length) continue;
+    const latent = await withBudget(scan(antibodies.map((a) => a.doc), ["."], root, { globs: await excludeGlobs(store) }), SCAN_BUDGET_MS);
+    parts.push(briefing(antibodies, latent, { hooked: Boolean(opts.hook), prefix: displayPrefix(cwd, root) }));
+  }
+  if (parts.length) console.log(parts.join("\n\n"));
   return 0;
 }
 
@@ -55,12 +57,14 @@ async function withBudget<T>(p: Promise<T>, ms: number): Promise<T | null> {
   }
 }
 
-export function briefing(antibodies: Antibody[], latent: Match[] | null, opts: { hooked?: boolean } = {}): string {
+export function briefing(antibodies: Antibody[], latent: Match[] | null, opts: { hooked?: boolean; prefix?: string } = {}): string {
   const label = (lang: string) => languageById(lang)?.label ?? lang;
+  const prefix = opts.prefix ?? "";
+  const repo = prefix ? `The repository in ${prefix}` : "This repository";
   const lines = [
-    "# bugvax: bugs this repository already fixed",
+    `# bugvax: bugs ${prefix ? `the repository in ${prefix}` : "this repository"} already fixed`,
     "",
-    `This repository has ${antibodies.length} bugvax antibod${antibodies.length === 1 ? "y" : "ies"}: bug classes it fixed before, learned from its git history. ` +
+    `${repo} has ${antibodies.length} bugvax antibod${antibodies.length === 1 ? "y" : "ies"}: bug classes it fixed before, learned from its git history. ` +
       (opts.hooked ? "Every edit you make is checked against them, and so is your work before you finish. " : "") +
       "Do not re-introduce these bugs, and do not copy code that still contains them.",
     "",
@@ -81,7 +85,7 @@ export function briefing(antibodies: Antibody[], latent: Match[] | null, opts: {
       "Known-bad code that still contains one of these bugs. Do not use it as an example for new code; if your task touches it, fix it:",
     );
     for (const m of latent.slice(0, MAX_LATENT)) {
-      lines.push(`- ${m.file}:${m.line} [${m.ruleId}] \`${oneLine(m.lines.split(/\r?\n/)[0], 120)}\`${m.fix ? " (proven auto-fix: `npx bugvax fix`)" : ""}`);
+      lines.push(`- ${prefix}${m.file}:${m.line} [${m.ruleId}] \`${oneLine(m.lines.split(/\r?\n/)[0], 120)}\`${m.fix ? " (proven auto-fix: `npx bugvax fix`)" : ""}`);
     }
     if (latent.length > MAX_LATENT) lines.push(`- … and ${latent.length - MAX_LATENT} more (\`npx bugvax scan\`).`);
   }

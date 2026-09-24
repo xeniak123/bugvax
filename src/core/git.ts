@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { run } from "../util/proc.js";
 
@@ -91,6 +91,51 @@ export function repoRelative(root: string, file: string, cwd = process.cwd()): s
   const abs = isAbsolute(file) ? file : join(cwd, file);
   const rel = relative(canonical(root), canonical(abs)).replace(/\\/g, "/");
   return rel.startsWith("../") || rel === ".." || isAbsolute(rel) ? null : rel;
+}
+
+/** The git repository containing `p` (a file or directory that may not exist yet), or null. */
+export async function repoRootOf(p: string): Promise<string | null> {
+  let dir = p;
+  while (!existsSync(dir)) {
+    const up = dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
+  const out = await gitMaybe(statSync(dir).isDirectory() ? dir : dirname(dir), ["rev-parse", "--show-toplevel"]);
+  return out?.trim() || null;
+}
+
+/**
+ * The repositories an agent session started in `cwd` works on: the one containing `cwd`, or, when
+ * `cwd` is a folder of repositories rather than a repository, those directly inside it that use bugvax.
+ */
+export async function sessionRoots(cwd: string): Promise<string[]> {
+  const own = await repoRootOf(cwd);
+  if (own) return [own];
+  let names: string[];
+  try {
+    names = readdirSync(cwd, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+  const roots: string[] = [];
+  for (const name of names) {
+    const dir = join(cwd, name);
+    if (!existsSync(join(dir, ".bugvax")) || !existsSync(join(dir, ".git"))) continue;
+    const root = await repoRootOf(dir);
+    if (root) roots.push(root);
+    if (roots.length >= 20) break;
+  }
+  return roots;
+}
+
+/** The prefix that turns a repository's paths into paths relative to `cwd`, when the repository is inside it. */
+export function displayPrefix(cwd: string, root: string): string {
+  const rel = relative(canonical(cwd), canonical(root)).replace(/\\/g, "/");
+  return rel && !rel.startsWith("..") && !isAbsolute(rel) ? `${rel}/` : "";
 }
 
 export async function repoRoot(cwd: string): Promise<string> {

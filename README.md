@@ -99,7 +99,7 @@ Every task was still completed, and no run touched an antibody to get past a che
 /plugin install bugvax@bugvax
 ```
 
-The plugin installs all three hooks, the bugvax MCP server and a skill that teaches the agent the workflow (check before copying code, learn from every fix it makes). It does nothing in repositories without `.bugvax/`. Prefer project settings that your team shares? `npx bugvax init --claude-code` writes the same hooks and skill into `.claude/`.
+The plugin installs all three hooks, the bugvax MCP server and a skill that teaches the agent the workflow (check before copying code, learn from every fix it makes). It does nothing in repositories without `.bugvax/`, and it also works when you start Claude Code in a folder that holds several repositories. Prefer project settings that your team shares? `npx bugvax init --claude-code` writes the same hooks and skill into `.claude/`.
 
 ### Other agents
 

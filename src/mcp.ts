@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import { z } from "zod";
 import { describeAntibody, describeMatches, describeOutcome, oneLine } from "./agent.js";
 import { scan } from "./core/engine.js";
 import { runFix } from "./core/fixer.js";
-import { gitMaybe, repoRelative, repoRoot } from "./core/git.js";
+import { repoRelative, repoRoot, repoRootOf, sessionRoots } from "./core/git.js";
 import { languageOf } from "./core/languages.js";
 import { learnFromSample } from "./core/learner.js";
 import { sampleFromWorkingTree } from "./core/sample.js";
@@ -28,18 +28,6 @@ function nativePath(p: string): string {
   if (process.platform !== "win32") return p;
   const m = /^\/([a-zA-Z])(\/.*)?$/.exec(p);
   return m ? `${m[1].toUpperCase()}:${m[2] ?? "/"}` : p;
-}
-
-/** The git repository containing `p` (a file or directory that may not exist yet), or null. */
-async function rootOf(p: string): Promise<string | null> {
-  let dir = p;
-  while (!existsSync(dir)) {
-    const up = dirname(dir);
-    if (up === dir) return null;
-    dir = up;
-  }
-  const out = await gitMaybe(statSync(dir).isDirectory() ? dir : dirname(dir), ["rev-parse", "--show-toplevel"]);
-  return out?.trim() || null;
 }
 
 type Resolved = { rel: string } | { error: string };
@@ -70,23 +58,26 @@ export function createMcpServer(cwd = process.cwd()): McpServer {
 
   /**
    * Which repository? BUGVAX_ROOT, then the repository of an absolute path the agent passed, then
-   * the server's working directory, then the client's MCP roots (clients with a global config,
+   * the server's working directory (or the one bugvax repository inside it), then the client's MCP roots (clients with a global config,
    * like Claude Desktop, do not start servers in the project directory).
    */
   async function findRoot(hint?: string): Promise<string> {
     if (process.env.BUGVAX_ROOT) return repoRoot(process.env.BUGVAX_ROOT);
     if (hint && isAbsolute(nativePath(hint))) {
-      const r = await rootOf(nativePath(hint));
+      const r = await repoRootOf(nativePath(hint));
       if (r) return r;
     }
-    const here = await rootOf(cwd);
+    const here = await repoRootOf(cwd);
     if (here) return here;
+    // A folder that holds repositories: fine when exactly one of them uses bugvax.
+    const inside = await sessionRoots(cwd);
+    if (inside.length === 1) return inside[0];
     if (server.server.getClientCapabilities()?.roots) {
       try {
         const { roots } = await server.server.listRoots();
         for (const r of roots) {
           if (!r.uri.startsWith("file:")) continue;
-          const found = await rootOf(fileURLToPath(r.uri));
+          const found = await repoRootOf(fileURLToPath(r.uri));
           if (found) return found;
         }
       } catch {

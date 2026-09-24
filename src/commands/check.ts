@@ -1,25 +1,28 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { describeMatches } from "../agent.js";
 import { scan, type Match, type RuleDoc } from "../core/engine.js";
 import {
   canonical,
   changedFiles,
   diffHunks,
+  displayPrefix,
   git,
   isTracked,
   newRange,
   overlaps,
   repoRelative,
   repoRoot,
+  repoRootOf,
+  sessionRoots,
   showFile,
   untrackedFiles,
   type Hunk,
 } from "../core/git.js";
 import { languageOf } from "../core/languages.js";
-import { Store } from "../core/store.js";
+import { Store, type Antibody } from "../core/store.js";
 import { githubAnnotations, header, pc, plural, printFindings } from "../ui.js";
 
 export interface CheckOptions {
@@ -211,7 +214,8 @@ async function hookReport(type: HookType, input: HookInput, cwd: string): Promis
     files = f ? [f] : [];
   }
   if (!files.length) return null;
-  const root = await repoRoot(cwd).catch(() => null);
+  // The repository of the edited file: the session may run in a folder that holds several repositories.
+  const root = (await repoRootOf(isAbsolute(files[0]) ? files[0] : join(cwd, files[0]))) ?? (await repoRootOf(cwd));
   if (!root) return null; // not a git repository: nothing to check
   const store = new Store(root);
   const antibodies = await store.antibodies();
@@ -223,7 +227,7 @@ async function hookReport(type: HookType, input: HookInput, cwd: string): Promis
   return [
     `bugvax: this edit re-introduces ${plural(matches.length, "bug")} that ${matches.length === 1 ? "was" : "were"} already fixed before.`,
     "",
-    describeMatches(matches, antibodies),
+    describeMatches(prefixed(matches, displayPrefix(cwd, root)), antibodies),
     "",
     "Please fix these before continuing. If a finding is wrong, say so and explain why instead of working around it.",
   ].join("\n");
@@ -240,12 +244,31 @@ const MAX_BLOCKS_PER_SESSION = 6;
  * hook recorded.
  */
 async function stopReport(type: HookType, input: HookInput, cwd: string): Promise<string | null> {
-  const root = await repoRoot(cwd).catch(() => null);
-  if (!root) return null;
+  const sessionId = input.session_id ?? input.conversation_id;
+  const matches: Match[] = [];
+  const antibodies: Antibody[] = [];
+  for (const root of await sessionRoots(cwd)) {
+    const found = await stopFindings(type, root, sessionId);
+    if (!found) continue;
+    matches.push(...prefixed(found.matches, displayPrefix(cwd, root)));
+    antibodies.push(...found.antibodies);
+  }
+  if (!matches.length) return null;
+  return [
+    `bugvax: before you finish: your changes re-introduce ${plural(matches.length, "bug")} that this repository already fixed before.`,
+    "",
+    describeMatches(matches, antibodies),
+    "",
+    "Fix them now (where a proven fix is shown, `npx bugvax fix <file>` applies it), then finish.",
+    "If a finding is a false positive, do not work around it or edit .bugvax/: say which one and explain why.",
+  ].join("\n");
+}
+
+/** Findings in one repository that should block the agent from finishing, or null. */
+async function stopFindings(type: HookType, root: string, sessionId: string | undefined): Promise<{ matches: Match[]; antibodies: Antibody[] } | null> {
   const store = new Store(root);
   const antibodies = await store.antibodies();
   if (!antibodies.length) return null;
-  const sessionId = input.session_id ?? input.conversation_id;
   const session = await readSession(root, sessionId);
   let only: string[] | undefined;
   if (type === "cursor") {
@@ -265,14 +288,12 @@ async function stopReport(type: HookType, input: HookInput, cwd: string): Promis
   const total = Object.values(session.blocks).reduce((n, c) => n + c, 0);
   if ((session.blocks[key] ?? 0) >= MAX_BLOCKS_PER_FINDING || total >= MAX_BLOCKS_PER_SESSION) return null;
   await writeSession(root, sessionId, { ...session, blocks: { ...session.blocks, [key]: (session.blocks[key] ?? 0) + 1 } });
-  return [
-    `bugvax: before you finish: your changes re-introduce ${plural(matches.length, "bug")} that this repository already fixed before.`,
-    "",
-    describeMatches(matches, antibodies),
-    "",
-    "Fix them now (where a proven fix is shown, `npx bugvax fix <file>` applies it), then finish.",
-    "If a finding is a false positive, do not work around it or edit .bugvax/: say which one and explain why.",
-  ].join("\n");
+  return { matches, antibodies };
+}
+
+/** Matches with paths relative to where the agent works. */
+function prefixed(matches: Match[], prefix: string): Match[] {
+  return prefix ? matches.map((m) => ({ ...m, file: prefix + m.file })) : matches;
 }
 
 function emit(type: HookType, report: string | null): number {
@@ -360,7 +381,7 @@ async function recordCursorEdit(input: HookInput, cwd: string): Promise<void> {
   const file = input.file_path ?? input.tool_input?.file_path;
   const sessionId = input.conversation_id ?? input.session_id;
   if (!file || !sessionId) return;
-  const root = await repoRoot(cwd);
+  const root = (await repoRootOf(isAbsolute(file) ? file : join(cwd, file))) ?? (await repoRoot(cwd));
   const rel = repoRelative(root, file, cwd);
   if (!rel || !languageOf(rel)) return;
   const session = await readSession(root, sessionId);
