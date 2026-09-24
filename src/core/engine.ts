@@ -177,10 +177,17 @@ export async function scan(rules: RuleDoc[], targets: string[], cwd: string, opt
       }
       matches.push(...parsed);
     }
-    return dedupe(matches);
+    // ast-grep scans files in parallel: sort, so output and model prompts are the same on every run.
+    return dedupe(matches).sort(byLocation);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+function byLocation(a: Match, b: Match): number {
+  return cmp(a.file, b.file) || a.line - b.line || a.column - b.column || cmp(a.ruleId, b.ruleId);
 }
 
 function dedupe(matches: Match[]): Match[] {

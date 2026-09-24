@@ -1,6 +1,10 @@
 {
   "name": "bugvax",
-  "owner": { "name": "xeniak123", "url": "https://github.com/xeniak123" },
+  "owner": {
+    "name": "xeniak123",
+    "url": "https://github.com/xeniak123"
+  },
+  "description": "bugvax: turns the bugs your repository already fixed into checks that keep Claude from re-introducing them.",
   "plugins": [
     {
       "name": "bugvax",

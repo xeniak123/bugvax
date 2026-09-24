@@ -71,6 +71,23 @@ describe("hostile input", () => {
   });
 });
 
+describe("scan output", () => {
+  it("is sorted, so reports and model prompts are the same on every run", async () => {
+    const repo = await makeRepo();
+    try {
+      const bug = "export async function f(db) {\n  db.commit();\n  db.commit();\n}\n";
+      await repo.commit({ "src/b.ts": bug, "src/a.ts": bug, "lib/z.ts": bug }, "init");
+      const rule = { id: "c", language: "tsx", rule: { pattern: "$DB.commit()" } };
+      for (let i = 0; i < 3; i++) {
+        const found = (await scan([rule], ["."], repo.dir)).map((m) => `${m.file}:${m.line}`);
+        expect(found).toEqual(["lib/z.ts:2", "lib/z.ts:3", "src/a.ts:2", "src/a.ts:3", "src/b.ts:2", "src/b.ts:3"]);
+      }
+    } finally {
+      await repo.cleanup();
+    }
+  });
+});
+
 describe("fixing", () => {
   it("never applies a fix twice to the same place", async () => {
     const repo = await makeRepo();

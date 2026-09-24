@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "src/deposits.ts:6 is the exact same pattern as the fixed code in transfers.ts: a raw user-supplied decimal currency amount (the `amount` parameter) is converted to integer cents via Math.round(amount * 100). Values like 0.29 yield 28.999999999999996 and round down, producing an off-by-one-cent balance and an incorrect `cents` value in the emitted deposit.completed event. Nothing earlier in the function pre-rounds or normalizes `amount`, and this is not a derived product like a percentage fee, so the identical fix applies: import { toCents } from \"./money\" and use const cents = toCents(amount)."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"src/deposits.ts:6 is the exact same pattern as the fixed code in transfers.ts: a raw user-supplied decimal currency amount (the `amount` parameter) is converted to integer cents via Math.round(amount * 100). Values like 0.29 yield 28.999999999999996 and round down, producing an off-by-one-cent balance and an incorrect `cents` value in the emitted deposit.completed event. Nothing earlier in the function pre-rounds or normalizes `amount`, and this is not a derived product like a percentage fee, so the identical fix applies: import { toCents } from \\\"./money\\\" and use const cents = toCents(amount).\"}]}"
+}

@@ -9,7 +9,7 @@
 - Hooks for Cursor (`afterFileEdit` + `stop`: only the agent's own files are checked), Gemini CLI and Codex via `bugvax init`.
 - `bugvax vaccinate starter`: validated antibodies for classic bug classes.
 - GitHub Action (`uses: xeniak123/bugvax@v1`) that runs the bugvax version matching the action, with annotations on changed lines, and a git pre-commit hook.
-- Correctness: `exclude` is honoured everywhere (hooks, `check`, CI, MCP); deleting a guard line is caught; non-ASCII file names work; user git settings (`diff.external`, `diff.mnemonicPrefix`, …) no longer change results; a broken antibody file is named instead of silently disabling checks; usage limits, offline and setup errors stop `learn` without marking fixes as failed.
+- Correctness: `exclude` is honoured everywhere (hooks, `check`, CI, MCP); deleting a guard line is caught; non-ASCII file names work; user git settings (`diff.external`, `diff.mnemonicPrefix`, …) no longer change results; a broken antibody file is named instead of silently disabling checks; findings are reported in a stable order, so reviews and replays are reproducible; usage limits, offline and setup errors stop `learn` without marking fixes as failed.
 - Requires Node.js 22.12 or newer.
 
 ## 0.1.0

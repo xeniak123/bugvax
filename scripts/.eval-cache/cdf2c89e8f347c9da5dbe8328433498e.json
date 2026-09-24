@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "Recurring, syntactically detectable API misuse: converting a plain decimal currency amount to cents with floating-point arithmetic (Math.round(x * 100)) instead of the project's toCents() helper.",
+    "id": "manual-float-to-cents-conversion",
+    "title": "Currency amount converted to cents with floating-point math instead of toCents()",
+    "message": "Math.round($AMOUNT * 100) loses a cent for some values (0.29 * 100 === 28.999999999999996); use toCents($AMOUNT)",
+    "note": "Multiplying a decimal currency amount by 100 in binary floating point can land just below the .5 boundary, so Math.round rounds down and the result is off by one cent. Use the shared toCents() helper from ./money for exact decimal amounts; this does not apply to rounding an already-derived product such as a percentage fee.",
+    "severity": "error",
+    "rule_yaml": "rule:\n  any:\n    - pattern: Math.round($AMOUNT * 100)\n    - pattern: Math.round(100 * $AMOUNT)\nconstraints:\n  AMOUNT:\n    any:\n      - kind: identifier\n      - kind: member_expression\n",
+    "fix": "toCents($AMOUNT)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"Recurring, syntactically detectable API misuse: converting a plain decimal currency amount to cents with floating-point arithmetic (Math.round(x * 100)) instead of the project's toCents() helper.\",\"id\":\"manual-float-to-cents-conversion\",\"title\":\"Currency amount converted to cents with floating-point math instead of toCents()\",\"message\":\"Math.round($AMOUNT * 100) loses a cent for some values (0.29 * 100 === 28.999999999999996); use toCents($AMOUNT)\",\"note\":\"Multiplying a decimal currency amount by 100 in binary floating point can land just below the .5 boundary, so Math.round rounds down and the result is off by one cent. Use the shared toCents() helper from ./money for exact decimal amounts; this does not apply to rounding an already-derived product such as a percentage fee.\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  any:\\n    - pattern: Math.round($AMOUNT * 100)\\n    - pattern: Math.round(100 * $AMOUNT)\\nconstraints:\\n  AMOUNT:\\n    any:\\n      - kind: identifier\\n      - kind: member_expression\\n\",\"fix\":\"toCents($AMOUNT)\"}"
+}

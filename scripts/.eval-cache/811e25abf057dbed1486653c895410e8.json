@@ -1,0 +1,17 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "Identical to the fixed case: `amount` is a raw decimal currency value converted to integer cents with Math.round(amount * 100), so values like 0.29 (0.29*100 === 28.999999999999996) round down and lose a cent. The stored balance and the emitted deposit.completed event carry the wrong value. The exact same fix applies: import { toCents } from \"./money\" and use `const cents = toCents(amount);`."
+      },
+      {
+        "index": 2,
+        "real_bug": false,
+        "reason": "This is not a decimal-amount-to-cents conversion; it is rounding a computed percentage fee (amount * 0.015 * 100) to the nearest cent. The matched $AMOUNT is itself a derived float product (amount * FEE_RATE), not a user-entered decimal currency literal, so the .5-boundary artifact the rule targets does not apply, and toCents() — which is built to safely parse an exact decimal amount — would not be a correct substitute for a product that already carries intrinsic floating-point error. Rounding a fee to the nearest cent here is the intended behavior; no equivalent fix applies."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"Identical to the fixed case: `amount` is a raw decimal currency value converted to integer cents with Math.round(amount * 100), so values like 0.29 (0.29*100 === 28.999999999999996) round down and lose a cent. The stored balance and the emitted deposit.completed event carry the wrong value. The exact same fix applies: import { toCents } from \\\"./money\\\" and use `const cents = toCents(amount);`.\"},{\"index\":2,\"real_bug\":false,\"reason\":\"This is not a decimal-amount-to-cents conversion; it is rounding a computed percentage fee (amount * 0.015 * 100) to the nearest cent. The matched $AMOUNT is itself a derived float product (amount * FEE_RATE), not a user-entered decimal currency literal, so the .5-boundary artifact the rule targets does not apply, and toCents() — which is built to safely parse an exact decimal amount — would not be a correct substitute for a product that already carries intrinsic floating-point error. Rounding a fee to the nearest cent here is the intended behavior; no equivalent fix applies.\"}]}"
+}
