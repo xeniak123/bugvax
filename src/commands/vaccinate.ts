@@ -24,17 +24,21 @@ export async function vaccinateCommand(names: string[]): Promise<number> {
   }
 
   const root = await repoRoot(process.cwd());
-  const store = new Store(root);
-  await store.init();
-  header("vaccinate", root);
-  let added = 0;
+  const packs = [];
   for (const name of names) {
     const pack = await loadPack(name);
     if (!pack) {
       const known = (await listPacks()).map((p) => p.name);
-      console.log(pc.red(`\n  ✗ unknown pack "${name}"${known.length ? ` (available: ${known.join(", ")})` : ""}`));
-      continue;
+      console.error(pc.red(`bugvax: unknown vaccine pack "${name}"${known.length ? ` (available: ${known.join(", ")})` : ""}`));
+      return 1;
     }
+    packs.push(pack);
+  }
+  const store = new Store(root);
+  await store.init();
+  header("vaccinate", root);
+  let added = 0;
+  for (const pack of packs) {
     const res = await vaccinate(store, pack);
     added += res.added.length;
     console.log(`\n  ${pc.green("💉")} ${pc.bold(pack.name)}: ${plural(res.added.length, "new antibody", "new antibodies")}` +
@@ -43,7 +47,8 @@ export async function vaccinateCommand(names: string[]): Promise<number> {
     for (const bad of res.invalid) console.log(pc.yellow(`     ! skipped ${bad.id}: not supported by this ast-grep version`));
   }
   if (added) {
-    const matches = await scan((await store.antibodies()).map((a) => a.doc), ["."], root);
+    const globs = (await store.config()).exclude.map((g) => (g.startsWith("!") ? g : `!${g}`));
+    const matches = await scan((await store.antibodies()).map((a) => a.doc), ["."], root, { globs });
     console.log(
       matches.length
         ? pc.yellow(`\n  ⚠ ${plural(matches.length, "finding")} in your code already. Run ${pc.bold("bugvax scan")} to see them.\n`)

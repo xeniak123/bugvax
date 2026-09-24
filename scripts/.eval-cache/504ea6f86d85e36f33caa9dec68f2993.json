@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "src/reports.ts:7 parses the same zone-less UTC DB column (row.date from the transactions table) with new Date(), so for users outside UTC the value is interpreted as local time and can shift into the previous/next month, corrupting the 'YYYY-MM' bucket key from toISOString().slice(0,7). The identical fix applies: import { parseDate } from \"./dates\" and use parseDate(row.date). Nothing guards or normalizes the value beforehand, and this is production code, not a test."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"src/reports.ts:7 parses the same zone-less UTC DB column (row.date from the transactions table) with new Date(), so for users outside UTC the value is interpreted as local time and can shift into the previous/next month, corrupting the 'YYYY-MM' bucket key from toISOString().slice(0,7). The identical fix applies: import { parseDate } from \\\"./dates\\\" and use parseDate(row.date). Nothing guards or normalizes the value beforehand, and this is production code, not a test.\"}]}"
+}

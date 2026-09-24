@@ -2,6 +2,7 @@
 import { createRequire } from "node:module";
 import { Command, Option } from "commander";
 import { checkCommand, HOOK_TYPES } from "./commands/check.js";
+import { contextCommand } from "./commands/context.js";
 import { exportPackCommand, vaccinateCommand } from "./commands/vaccinate.js";
 import { startMcpServer } from "./mcp.js";
 import { demoCommand } from "./commands/demo.js";
@@ -22,7 +23,7 @@ const program = new Command()
 program
   .command("init")
   .description("create .bugvax/ and optionally install hooks")
-  .option("--claude-code", "Claude Code hook: check every file the agent edits")
+  .option("--claude-code", "Claude Code: session briefing, check every edit and the work before it finishes, plus the bugvax skill")
   .option("--cursor", "Cursor hook: check the agent's changes before it finishes")
   .option("--gemini", "Gemini CLI hook: check every file the agent writes")
   .option("--codex", "Codex hook: check every patch the agent applies")
@@ -67,6 +68,12 @@ program
   .addOption(new Option("--hook <agent>", "run as an agent hook: read the edit from stdin and hand findings back to the agent").choices([...HOOK_TYPES]))
   .option("--json", "machine-readable output")
   .action(async (files, opts) => exit(await checkCommand(files, opts)));
+
+program
+  .command("context")
+  .description("print a briefing for AI agents: the bugs this repository fixed before and where copies still live")
+  .addOption(new Option("--hook <agent>", "run as a session-start hook (reads the hook payload from stdin)").choices(["claude-code"]))
+  .action(async (opts) => exit(await contextCommand(opts)));
 
 program
   .command("fix")

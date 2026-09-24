@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "Project-specific contract violation: domain events published directly on the in-memory bus (bus.emit) are lost if the process crashes before the state change is persisted; they must go through the transactional outbox. Every bus.emit call site is syntactically detectable.",
+    "id": "bus-emit-instead-of-outbox-enqueue",
+    "title": "Domain event emitted on the in-memory bus instead of the outbox",
+    "message": "bus.emit() delivers this event in-process before the change is persisted, so it is lost on a crash; use outbox.enqueue() instead",
+    "note": "bus.emit fires immediately and is not stored with the state change, so a crash between the mutation and delivery drops the event. Enqueue it on the transactional outbox (outbox.enqueue(name, payload)) so the event is persisted alongside the change and delivered at least once.",
+    "severity": "error",
+    "rule_yaml": "rule:\n  kind: call_expression\n  pattern: bus.emit($EVENT, $$$ARGS)\n",
+    "fix": "outbox.enqueue($EVENT, $$$ARGS)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"Project-specific contract violation: domain events published directly on the in-memory bus (bus.emit) are lost if the process crashes before the state change is persisted; they must go through the transactional outbox. Every bus.emit call site is syntactically detectable.\",\"id\":\"bus-emit-instead-of-outbox-enqueue\",\"title\":\"Domain event emitted on the in-memory bus instead of the outbox\",\"message\":\"bus.emit() delivers this event in-process before the change is persisted, so it is lost on a crash; use outbox.enqueue() instead\",\"note\":\"bus.emit fires immediately and is not stored with the state change, so a crash between the mutation and delivery drops the event. Enqueue it on the transactional outbox (outbox.enqueue(name, payload)) so the event is persisted alongside the change and delivered at least once.\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  kind: call_expression\\n  pattern: bus.emit($EVENT, $$$ARGS)\\n\",\"fix\":\"outbox.enqueue($EVENT, $$$ARGS)\"}"
+}

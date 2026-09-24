@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { checkRule, ruleToYaml, type RuleDoc } from "./engine.js";
-import { antibodyMeta, type Antibody, type AntibodyMeta, type Store } from "./store.js";
+import { antibodyMeta, safeId, type Antibody, type AntibodyMeta, type Store } from "./store.js";
 
 /**
  * Vaccines are packs of antibodies learned from the bug-fix history of public projects, shipped
@@ -111,8 +111,8 @@ export async function exportPack(antibodies: Antibody[], out: string, info: Pack
   for (const a of antibodies) {
     const meta = antibodyMeta(a.doc);
     const source = { ...(meta?.source ?? { subject: a.doc.id, files: [] }), repo: info.sources[0]?.repo };
-    const doc: RuleDoc = { ...a.doc, metadata: { ...(a.doc.metadata ?? {}), bugvax: { ...(meta ?? {}), source } } };
-    await writeFile(join(out, "antibodies", `${a.doc.id}.yml`), ruleToYaml(doc));
+    const doc: RuleDoc = { ...a.doc, id: safeId(a.doc.id), metadata: { ...(a.doc.metadata ?? {}), bugvax: { ...(meta ?? {}), source } } };
+    await writeFile(join(out, "antibodies", `${doc.id}.yml`), ruleToYaml(doc));
     n++;
   }
   const packFile = join(out, "pack.json");

@@ -22,10 +22,16 @@ rule:
           kind: argument_list
           has:
             kind: dictionary_splat
+    # curated: only the requests module, not a dict or parameter that happens to be called `requests`
+    - inside:
+        kind: module
+        stopBy: end
+        has:
+          kind: import_statement
+          regex: '\brequests\b'
 constraints:
   M:
     regex: ^(get|post|put|patch|delete|head|options|request)$
-fix: requests.$M($$$ARGS, timeout=10)
 metadata:
   bugvax:
     title: HTTP request without a timeout
@@ -44,4 +50,4 @@ metadata:
       headMatches: 1
       attempts: 2
       reviewed: true
-      fix: proven
+      fix: none

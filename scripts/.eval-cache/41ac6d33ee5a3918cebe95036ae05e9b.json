@@ -1,0 +1,17 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": false,
+        "reason": "The multiplicand here is not a decimal currency amount but an arbitrary float product (amount * 0.015), which generally has far more than two decimal places (e.g. 19.99 * 0.015 = 0.29985). Rounding it to whole cents is an intentional, lossy business rounding of a fee, not an exact decimal->integer-cents conversion. toCents() is designed for amounts already expressed with at most two decimals; substituting it here would either be a no-op semantic change or misapply a helper that assumes exact decimal input. The off-by-one-cent class of bug the rule targets (exact values like 0.29 landing at 28.999...) does not apply, so the original fix does not transfer."
+      },
+      {
+        "index": 2,
+        "real_bug": true,
+        "reason": "Identical to the fixed code: a user-supplied decimal currency amount is converted to integer cents with Math.round(amount * 100), so values such as 0.29 (28.999999999999996) round down and the deposit is credited one cent short. The balance is mutated and the wrong cents value is emitted on deposit.completed, so the error propagates. No earlier normalization or guard exists in this path, and the exact same fix applies: import toCents from ./money and use toCents(amount)."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":false,\"reason\":\"The multiplicand here is not a decimal currency amount but an arbitrary float product (amount * 0.015), which generally has far more than two decimal places (e.g. 19.99 * 0.015 = 0.29985). Rounding it to whole cents is an intentional, lossy business rounding of a fee, not an exact decimal->integer-cents conversion. toCents() is designed for amounts already expressed with at most two decimals; substituting it here would either be a no-op semantic change or misapply a helper that assumes exact decimal input. The off-by-one-cent class of bug the rule targets (exact values like 0.29 landing at 28.999...) does not apply, so the original fix does not transfer.\"},{\"index\":2,\"real_bug\":true,\"reason\":\"Identical to the fixed code: a user-supplied decimal currency amount is converted to integer cents with Math.round(amount * 100), so values such as 0.29 (28.999999999999996) round down and the deposit is credited one cent short. The balance is mutated and the wrong cents value is emitted on deposit.completed, so the error propagates. No earlier normalization or guard exists in this path, and the exact same fix applies: import toCents from ./money and use toCents(amount).\"}]}"
+}

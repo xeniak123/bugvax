@@ -8,12 +8,12 @@ rule:
   kind: call_expression
   all:
     - pattern: $ARR.sort()
+    # curated: only functions that return a numeric array, not any function mentioning `number`
     - inside:
         stopBy: end
         has:
           field: return_type
-          regex: number
-fix: $ARR.sort((a, b) => a - b)
+          regex: '^:\s*(Promise<\s*)?(number\[\]|Array<number>|readonly number\[\])'
 metadata:
   bugvax:
     title: Numeric array sorted with .sort() and no comparator
@@ -32,4 +32,4 @@ metadata:
       headMatches: 1
       attempts: 3
       reviewed: true
-      fix: proven
+      fix: none

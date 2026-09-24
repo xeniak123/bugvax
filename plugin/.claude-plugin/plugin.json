@@ -1,7 +1,7 @@
 {
   "name": "bugvax",
   "displayName": "bugvax",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keeps Claude from re-introducing bugs your repository already fixed: session briefing on known bug classes, a check after every edit and before finishing, and an MCP server for bug history.",
   "author": { "name": "xeniak123", "url": "https://github.com/xeniak123" },
   "homepage": "https://xeniak123.github.io/bugvax/",

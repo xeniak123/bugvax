@@ -92,6 +92,23 @@ describe("proving auto-fixes on history", () => {
     expect(await prove("await $DB.commit()")).toMatchObject({ ok: true, fixed: 1 });
   });
 
+  it("rejects a template that changes nothing", async () => {
+    const proof = await prove("$DB.commit()");
+    expect(proof.ok).toBe(false);
+  });
+
+  it("is not fooled by an external diff tool in the user's git config", async () => {
+    const saved = process.env.GIT_EXTERNAL_DIFF;
+    process.env.GIT_EXTERNAL_DIFF = "echo";
+    try {
+      expect((await prove("void 0")).ok).toBe(false);
+      expect((await prove("await $DB.commit()")).ok).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.GIT_EXTERNAL_DIFF;
+      else process.env.GIT_EXTERNAL_DIFF = saved;
+    }
+  });
+
   it("rejects a template that removes the match but differs from the human fix", async () => {
     const proof = await prove("$DB.commit().catch(() => {})");
     expect(proof.ok).toBe(false);

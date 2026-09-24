@@ -8,6 +8,8 @@ export interface CompleteJSONRequest {
   messages: ChatMessage[];
   /** JSON Schema the response must follow. */
   schema: Record<string, unknown>;
+  /** Cancels the call (e.g. an MCP client gave up on the tool call). */
+  signal?: AbortSignal;
 }
 
 export interface CompleteJSONResult {
@@ -39,13 +41,16 @@ export class LLMError extends Error {
   }
 }
 
-const LIMIT = /(session|usage|rate|weekly|daily|monthly)[ -]limit|limit (reached|exceeded)|hit your .*limit|resets? (at )?\d|credit balance|quota|billing|insufficient/i;
+const LIMIT =
+  /(session|usage|rate|weekly|daily|monthly)[ -]limit|limit (reached|exceeded)|hit your .*(limit|budget)|reached your .*limit|resets? (at )?\d|credit balance|quota|billing|insufficient|out of (extra )?usage|usage credits|usage allocation|shared budget|add funds/i;
 const AUTH = /not logged in|please run \/login|invalid api key|authentication|unauthorized|oauth token/i;
-const TRANSIENT = /overloaded|timed? ?out|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network|529|503|502/i;
+const SETUP = /issue with the selected model|may not exist|model .*not found|not_found_error|unknown option|unknown argument/i;
+const TRANSIENT =
+  /overloaded|timed? ?out|ECONNRESET|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|EPIPE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network|unable to connect|connection (refused|dropped|error)|internet|server-side issue|internal server error|\b5\d\d\b/i;
 
 /** Classify a backend error message. */
 export function classifyError(message: string): LLMErrorKind {
-  if (LIMIT.test(message) || AUTH.test(message)) return "fatal";
+  if (LIMIT.test(message) || AUTH.test(message) || SETUP.test(message)) return "fatal";
   if (TRANSIENT.test(message)) return "transient";
   return "model";
 }
@@ -70,6 +75,12 @@ export function extractJSON(text: string): unknown {
   }
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
-  if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    } catch {
+      /* fall through */
+    }
+  }
   throw new LLMError(`Model did not return JSON: ${trimmed.slice(0, 200)}`);
 }

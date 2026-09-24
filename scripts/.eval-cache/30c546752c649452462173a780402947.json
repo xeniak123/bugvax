@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "Recurring API-misuse pattern: wrapping a database timestamp column in `new Date(...)`, which parses the zone-less UTC string as local time; the project contract is to use `parseDate()` for DB timestamp fields.",
+    "id": "new-date-on-db-timestamp",
+    "title": "DB timestamp parsed with new Date() instead of parseDate()",
+    "message": "new Date() on a database timestamp field parses the zone-less UTC string as local time; use parseDate() instead",
+    "note": "The database stores UTC timestamps without a zone marker, so `new Date(row.date)` interprets them in the local zone and shifts dates for users outside UTC. Use `parseDate(row.date)` from \"./dates\", which reads the value as UTC.",
+    "severity": "error",
+    "rule_yaml": "rule:\n  pattern: new Date($ROW.$FIELD)\nconstraints:\n  FIELD:\n    regex: \"(?i)(date|_at|At|time|timestamp)$\"\n",
+    "fix": "parseDate($ROW.$FIELD)"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"Recurring API-misuse pattern: wrapping a database timestamp column in `new Date(...)`, which parses the zone-less UTC string as local time; the project contract is to use `parseDate()` for DB timestamp fields.\",\"id\":\"new-date-on-db-timestamp\",\"title\":\"DB timestamp parsed with new Date() instead of parseDate()\",\"message\":\"new Date() on a database timestamp field parses the zone-less UTC string as local time; use parseDate() instead\",\"note\":\"The database stores UTC timestamps without a zone marker, so `new Date(row.date)` interprets them in the local zone and shifts dates for users outside UTC. Use `parseDate(row.date)` from \\\"./dates\\\", which reads the value as UTC.\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  pattern: new Date($ROW.$FIELD)\\nconstraints:\\n  FIELD:\\n    regex: \\\"(?i)(date|_at|At|time|timestamp)$\\\"\\n\",\"fix\":\"parseDate($ROW.$FIELD)\"}"
+}

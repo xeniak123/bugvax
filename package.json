@@ -1,6 +1,6 @@
 {
   "name": "bugvax",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Vaccinate your codebase: every bug you fix becomes a validated rule that blocks the whole bug class forever, for humans and AI agents.",
   "type": "module",
   "bin": {
@@ -10,6 +10,7 @@
     "dist",
     "vaccines",
     "scripts/demo-repo.mjs",
+    "plugin",
     "README.md",
     "LICENSE"
   ],
@@ -21,7 +22,7 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "keywords": [
     "static-analysis",

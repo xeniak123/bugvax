@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": true,
+    "reason": "The fix enforces a project contract: db.query() must receive a tenant scope option, otherwise the query returns rows from other tenants. A single-argument db.query() call is detectable from syntax alone.",
+    "id": "db-query-missing-tenant-scope",
+    "title": "db.query() called without tenant scope",
+    "message": "db.query() called without a tenant scope option: this query can return rows from other tenants",
+    "note": "Queries issued through db.query() must be scoped to the current tenant; with only the SQL argument the query returns rows belonging to every tenant. Pass the scope as the second argument, e.g. db.query(sql, { tenantId }).",
+    "severity": "error",
+    "rule_yaml": "rule:\n  pattern: $DB.query($SQL)\nconstraints:\n  DB:\n    regex: \"^db$\"\n",
+    "fix": "db.query($SQL, { tenantId })"
+  },
+  "raw": "{\"generalizable\":true,\"reason\":\"The fix enforces a project contract: db.query() must receive a tenant scope option, otherwise the query returns rows from other tenants. A single-argument db.query() call is detectable from syntax alone.\",\"id\":\"db-query-missing-tenant-scope\",\"title\":\"db.query() called without tenant scope\",\"message\":\"db.query() called without a tenant scope option: this query can return rows from other tenants\",\"note\":\"Queries issued through db.query() must be scoped to the current tenant; with only the SQL argument the query returns rows belonging to every tenant. Pass the scope as the second argument, e.g. db.query(sql, { tenantId }).\",\"severity\":\"error\",\"rule_yaml\":\"rule:\\n  pattern: $DB.query($SQL)\\nconstraints:\\n  DB:\\n    regex: \\\"^db$\\\"\\n\",\"fix\":\"db.query($SQL, { tenantId })\"}"
+}

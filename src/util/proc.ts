@@ -11,6 +11,8 @@ export interface RunOptions {
   input?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /** Kills the process and rejects when aborted. */
+  signal?: AbortSignal;
 }
 
 /** Spawn a process without a shell and collect its output. Never rejects on a non-zero exit code. */
@@ -25,6 +27,13 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let timer: NodeJS.Timeout | undefined;
+    const onAbort = () => {
+      if (timer) clearTimeout(timer);
+      child.kill();
+      reject(new Error("cancelled"));
+    };
+    if (opts.signal?.aborted) onAbort();
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
     if (opts.timeoutMs) {
       timer = setTimeout(() => {
         child.kill();
@@ -40,6 +49,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     });
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
+      opts.signal?.removeEventListener("abort", onAbort);
       resolve({
         code: code ?? 1,
         stdout: Buffer.concat(out).toString("utf8"),

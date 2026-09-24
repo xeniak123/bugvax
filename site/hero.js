@@ -397,7 +397,20 @@ export function initHero(canvas, opts) {
     const at = worldFromEvent(e);
     if (!at) return;
     lastInteraction = time;
-    if (spawn(at) && opts.reduced) settle();
+    if (opts.reduced) {
+      // Still images only: the previous bug is cleared, the new one is shown already bound.
+      for (const b of bugs) {
+        if (b.state === "gone") continue;
+        b.state = "gone";
+        if (b.binders.length) release(b);
+      }
+      if (spawn(at)) {
+        settle();
+        opts.onNeutralize(++neutralized);
+      }
+      return;
+    }
+    spawn(at);
   });
   canvas.addEventListener("pointermove", (e) => {
     if (e.pointerType !== "mouse") return;

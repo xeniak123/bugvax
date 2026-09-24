@@ -9,6 +9,15 @@ rule:
     - kind: expression_statement
     - has:
         pattern: $RES.status($CODE).json($$$ARGS)
+    - not:
+        precedes:
+          kind: return_statement
+    - not:
+        inside:
+          kind: if_statement
+          stopBy: end
+          has:
+            kind: else_clause
     - inside:
         kind: if_statement
         stopBy: end

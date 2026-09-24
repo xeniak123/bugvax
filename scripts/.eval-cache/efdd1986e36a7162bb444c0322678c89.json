@@ -1,0 +1,14 @@
+{
+  "json": {
+    "generalizable": false,
+    "reason": "The fix only changes a numeric constant (0.012 → 0.015) to match the correct business rule; the buggy value is syntactically indistinguishable from correct code, so there is no reusable detectable pattern.",
+    "id": "",
+    "title": "",
+    "message": "",
+    "note": "",
+    "severity": "warning",
+    "rule_yaml": "",
+    "fix": ""
+  },
+  "raw": "{\"generalizable\":false,\"reason\":\"The fix only changes a numeric constant (0.012 → 0.015) to match the correct business rule; the buggy value is syntactically indistinguishable from correct code, so there is no reusable detectable pattern.\",\"id\":\"\",\"title\":\"\",\"message\":\"\",\"note\":\"\",\"severity\":\"warning\",\"rule_yaml\":\"\",\"fix\":\"\"}"
+}

@@ -48,7 +48,8 @@ export async function validate(rule: RuleDoc, sample: FixSample, root: string, o
         await writeFile(p, content);
       }
     }
-    matches = await scan([rule], ["before", "after"], dir);
+    // Explicit files, not directories: ast-grep skips hidden directories (.github/, .storybook/) when it walks.
+    matches = await scan([rule], sample.files.flatMap((f) => [`before/${f.path}`, `after/${f.path}`]), dir);
   } catch (e) {
     if (e instanceof EngineError) return { ...empty, compileError: e.message, feedback: explainCompileError(e.message, sample) };
     throw e;
@@ -155,6 +156,7 @@ export async function proveFix(rule: RuleDoc, sample: FixSample, buggyHits: Matc
     const problems: string[] = [];
     const fixedRanges = new Map<string, [number, number][]>();
     let fixed = 0;
+    let changedFiles = 0;
     for (const f of sample.files) {
       const fileHits = hits.filter((m) => m.file === f.path);
       if (!fileHits.length) continue;
@@ -168,9 +170,15 @@ export async function proveFix(rule: RuleDoc, sample: FixSample, buggyHits: Matc
         await mkdir(dirname(paths[side]), { recursive: true });
         await writeFile(paths[side], text);
       }
-      const changes = (await noIndexHunks(paths.before, paths.fixed)).map((h) => newRange(h, 1));
+      const strict = sample.language.id === "python"; // indentation is syntax
+      const changes = (await noIndexHunks(paths.before, paths.fixed, strict)).map((h) => newRange(h, 1));
+      if (!changes.length) {
+        problems.push(`${f.path}: the fix template does not change the buggy code.`);
+        continue;
+      }
+      changedFiles++;
       fixedRanges.set(f.path, changes);
-      const residual = (await noIndexHunks(paths.fixed, paths.after)).filter((h) => changes.some((r) => overlaps(oldRange(h), r)));
+      const residual = (await noIndexHunks(paths.fixed, paths.after, strict)).filter((h) => changes.some((r) => overlaps(oldRange(h), r)));
       if (residual.length) {
         problems.push(
           `${f.path}: your fix template turns the buggy code into this (changed lines marked >):`,
@@ -184,12 +192,21 @@ export async function proveFix(rule: RuleDoc, sample: FixSample, buggyHits: Matc
         );
       }
     }
-    if (!fixed) return { ok: false, fixed: 0, feedback: "The fix template did not change the buggy code." };
+    if (!fixed || !changedFiles) return { ok: false, fixed: 0, feedback: "The fix template did not change the buggy code." };
     if (problems.length) return { ok: false, fixed, feedback: problems.join("\n") };
+
+    const targets = (side: string) => sample.files.filter((f) => fixedRanges.has(f.path)).map((f) => `${side}/${f.path}`);
+    // The rewritten code must still parse.
+    const parseErrors: RuleDoc = { id: "parse-error", language: rule.language, rule: { kind: "ERROR" } };
+    const errors = await scan([parseErrors], [...targets("before"), ...targets("fixed")], dir);
+    const count = (side: string) => errors.filter((m) => m.file.startsWith(`${side}/`)).length;
+    if (count("fixed") > count("before")) {
+      return { ok: false, fixed, feedback: "Applying the fix template produces code that no longer parses. Keep the syntax valid (indentation, brackets, commas)." };
+    }
 
     // The rewritten code must not trigger the rule again at the rewritten lines.
     const { fix: _fix, ...plain } = rule;
-    const again = await scan([plain as RuleDoc], ["fixed"], dir);
+    const again = await scan([plain as RuleDoc], targets("fixed"), dir);
     const still = again.filter((m) => {
       const path = m.file.replace(/^fixed\//, "");
       return fixedRanges.get(path)?.some((r) => overlaps([m.line, m.endLine], r));
@@ -201,9 +218,29 @@ export async function proveFix(rule: RuleDoc, sample: FixSample, buggyHits: Matc
   }
 }
 
-/** Zero-context hunks between two files, ignoring whitespace. */
-async function noIndexHunks(a: string, b: string): Promise<Hunk[]> {
-  const res = await run("git", ["diff", "--no-index", "--no-color", "-U0", "-w", "--ignore-cr-at-eol", "--", a, b]);
+/**
+ * Zero-context hunks between two files, ignoring whitespace (only trailing whitespace when
+ * `strict`, for languages where indentation matters). User diff settings (external diff tools,
+ * textconv, prefixes) must not change the output.
+ */
+async function noIndexHunks(a: string, b: string, strict = false): Promise<Hunk[]> {
+  const res = await run("git", [
+    "-c",
+    "core.quotePath=false",
+    "diff",
+    "--no-index",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--no-color",
+    "-U0",
+    strict ? "--ignore-space-at-eol" : "-w",
+    "--ignore-cr-at-eol",
+    "--",
+    a,
+    b,
+  ]);
   if (res.code > 1) throw new Error(`git diff --no-index failed: ${res.stderr.trim()}`);
   return [...parseHunks(res.stdout).values()].flat();
 }
@@ -218,7 +255,7 @@ export async function coveredBy(rules: RuleDoc[], sample: FixSample): Promise<st
       await mkdir(dirname(p), { recursive: true });
       await writeFile(p, f.before);
     }
-    const matches = await scan(rules, ["before"], dir);
+    const matches = await scan(rules, sample.files.map((f) => `before/${f.path}`), dir);
     const byPath = new Map(sample.files.map((f) => [f.path, f]));
     for (const m of matches) {
       const f = byPath.get(m.file.replace(/^before\//, ""));

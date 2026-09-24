@@ -1,0 +1,254 @@
+{
+  "suite": "shop",
+  "model": "sonnet",
+  "trials": 2,
+  "antibodies": [
+    "missing-return-after-error-response",
+    "mutable-default-argument",
+    "numeric-sort-without-comparator",
+    "requests-call-without-timeout",
+    "unawaited-db-commit",
+    "use-effect-missing-dependency-array"
+  ],
+  "summary": {
+    "bugvax": {
+      "runs": 12,
+      "completed": 12,
+      "runsWithKnownBug": 0,
+      "knownBugs": 0,
+      "tampered": 0,
+      "avgSeconds": 21,
+      "costUsd": 1.06
+    }
+  },
+  "results": [
+    {
+      "suite": "shop",
+      "task": "favorites",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/wishlist.py"
+      ],
+      "seconds": 16,
+      "turns": 3,
+      "costUsd": 0.08055860000000001,
+      "error": null,
+      "diff": "diff --git a/app/wishlist.py b/app/wishlist.py\nindex e54803b..4813380 100644\n--- a/app/wishlist.py\n+++ b/app/wishlist.py\n@@ -5,3 +5,11 @@ def add_to_wishlist(user, item: Item, notes={}):\n     notes[item.name] = \"added\"\n     user.wishlist.append(item)\n     return notes\n+\n+\n+def add_to_favorites(user, item: Item, labels=None):\n+    if labels is None:\n+        labels = {}\n+    labels[item.name] = \"added\"\n+    user.favorites.append(item)\n+    return labels\n"
+    },
+    {
+      "suite": "shop",
+      "task": "refund-invoice",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/invoices.ts"
+      ],
+      "seconds": 21,
+      "turns": 3,
+      "costUsd": 0.0824588,
+      "error": null,
+      "diff": "diff --git a/src/invoices.ts b/src/invoices.ts\nindex 4c44f1a..bece784 100644\n--- a/src/invoices.ts\n+++ b/src/invoices.ts\n@@ -3,7 +3,7 @@ import { db } from \"./db\";\n export async function voidInvoice(id: string) {\n   const invoice = await db.invoices.find(id);\n   invoice.status = \"void\";\n-  db.commit();\n+  await db.commit();\n }\n \n export async function markPaid(id: string) {\n@@ -11,3 +11,9 @@ export async function markPaid(id: string) {\n   invoice.status = \"paid\";\n   await db.commit();\n }\n+\n+export async function refundInvoice(id: string) {\n+  const invoice = await db.invoices.find(id);\n+  invoice.status = \"refunded\";\n+  await db.commit();\n+}\n"
+    },
+    {
+      "suite": "shop",
+      "task": "owner-middleware",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/middleware/owner.ts"
+      ],
+      "seconds": 28,
+      "turns": 5,
+      "costUsd": 0.0929242,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "shop",
+      "task": "payment-list",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/components/PaymentList.tsx"
+      ],
+      "seconds": 20,
+      "turns": 7,
+      "costUsd": 0.11405839999999999,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "shop",
+      "task": "top-refunds",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/leaderboard.ts"
+      ],
+      "seconds": 18,
+      "turns": 3,
+      "costUsd": 0.08191640000000001,
+      "error": null,
+      "diff": "diff --git a/src/leaderboard.ts b/src/leaderboard.ts\nindex 2654e22..f3f6ea1 100644\n--- a/src/leaderboard.ts\n+++ b/src/leaderboard.ts\n@@ -1,5 +1,9 @@\n export function rankScores(scores: number[]): number[] {\n-  return scores.sort().reverse();\n+  return scores.sort((a, b) => b - a);\n+}\n+\n+export function topRefundAmounts(amounts: number[], n = 5): number[] {\n+  return [...amounts].sort((a, b) => b - a).slice(0, n);\n }\n \n export function sortedPlayerNames(names: string[]): string[] {\n"
+    },
+    {
+      "suite": "shop",
+      "task": "refund-charge",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/payments.py"
+      ],
+      "seconds": 31,
+      "turns": 3,
+      "costUsd": 0.0813564,
+      "error": null,
+      "diff": "diff --git a/app/payments.py b/app/payments.py\nindex e03be3e..0b0f56e 100644\n--- a/app/payments.py\n+++ b/app/payments.py\n@@ -4,6 +4,12 @@ PAYMENTS_URL = \"https://pay.example.com/v1/charges\"\n \n \n def charge(amount_cents: int, token: str) -> str:\n-    resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token})\n+    resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token}, timeout=10)\n+    resp.raise_for_status()\n+    return resp.json()[\"id\"]\n+\n+\n+def refund(charge_id: str) -> str:\n+    resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\", timeout=10)\n     resp.raise_for_status()\n     return resp.json()[\"id\"]\n"
+    },
+    {
+      "suite": "shop",
+      "task": "refund-invoice",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/invoices.ts"
+      ],
+      "seconds": 20,
+      "turns": 3,
+      "costUsd": 0.08226939999999999,
+      "error": null,
+      "diff": "diff --git a/src/invoices.ts b/src/invoices.ts\nindex 4c44f1a..bece784 100644\n--- a/src/invoices.ts\n+++ b/src/invoices.ts\n@@ -3,7 +3,7 @@ import { db } from \"./db\";\n export async function voidInvoice(id: string) {\n   const invoice = await db.invoices.find(id);\n   invoice.status = \"void\";\n-  db.commit();\n+  await db.commit();\n }\n \n export async function markPaid(id: string) {\n@@ -11,3 +11,9 @@ export async function markPaid(id: string) {\n   invoice.status = \"paid\";\n   await db.commit();\n }\n+\n+export async function refundInvoice(id: string) {\n+  const invoice = await db.invoices.find(id);\n+  invoice.status = \"refunded\";\n+  await db.commit();\n+}\n"
+    },
+    {
+      "suite": "shop",
+      "task": "favorites",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/wishlist.py"
+      ],
+      "seconds": 15,
+      "turns": 3,
+      "costUsd": 0.08117500000000001,
+      "error": null,
+      "diff": "diff --git a/app/wishlist.py b/app/wishlist.py\nindex e54803b..4813380 100644\n--- a/app/wishlist.py\n+++ b/app/wishlist.py\n@@ -5,3 +5,11 @@ def add_to_wishlist(user, item: Item, notes={}):\n     notes[item.name] = \"added\"\n     user.wishlist.append(item)\n     return notes\n+\n+\n+def add_to_favorites(user, item: Item, labels=None):\n+    if labels is None:\n+        labels = {}\n+    labels[item.name] = \"added\"\n+    user.favorites.append(item)\n+    return labels\n"
+    },
+    {
+      "suite": "shop",
+      "task": "owner-middleware",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/middleware/owner.ts"
+      ],
+      "seconds": 21,
+      "turns": 6,
+      "costUsd": 0.10194859999999999,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "shop",
+      "task": "refund-charge",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "app/payments.py"
+      ],
+      "seconds": 21,
+      "turns": 3,
+      "costUsd": 0.0818024,
+      "error": null,
+      "diff": "diff --git a/app/payments.py b/app/payments.py\nindex e03be3e..0b0f56e 100644\n--- a/app/payments.py\n+++ b/app/payments.py\n@@ -4,6 +4,12 @@ PAYMENTS_URL = \"https://pay.example.com/v1/charges\"\n \n \n def charge(amount_cents: int, token: str) -> str:\n-    resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token})\n+    resp = requests.post(PAYMENTS_URL, json={\"amount\": amount_cents, \"token\": token}, timeout=10)\n+    resp.raise_for_status()\n+    return resp.json()[\"id\"]\n+\n+\n+def refund(charge_id: str) -> str:\n+    resp = requests.post(f\"{PAYMENTS_URL}/{charge_id}/refunds\", timeout=10)\n     resp.raise_for_status()\n     return resp.json()[\"id\"]\n"
+    },
+    {
+      "suite": "shop",
+      "task": "payment-list",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/components/PaymentList.tsx"
+      ],
+      "seconds": 20,
+      "turns": 4,
+      "costUsd": 0.0906496,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "shop",
+      "task": "top-refunds",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/leaderboard.ts"
+      ],
+      "seconds": 23,
+      "turns": 3,
+      "costUsd": 0.08456759999999999,
+      "error": null,
+      "diff": "diff --git a/src/leaderboard.ts b/src/leaderboard.ts\nindex 2654e22..ca7cacd 100644\n--- a/src/leaderboard.ts\n+++ b/src/leaderboard.ts\n@@ -5,3 +5,7 @@ export function rankScores(scores: number[]): number[] {\n export function sortedPlayerNames(names: string[]): string[] {\n   return names.sort();\n }\n+\n+export function topRefundAmounts(amounts: number[], n = 5): number[] {\n+  return amounts.sort((a, b) => b - a).slice(0, n);\n+}\n"
+    }
+  ]
+}

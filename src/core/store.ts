@@ -134,8 +134,13 @@ export class Store {
   async save(doc: RuleDoc): Promise<Antibody> {
     await mkdir(this.antibodyDir, { recursive: true });
     const taken = new Set((await this.antibodies()).map((a) => a.doc.id));
-    let id = doc.id;
-    for (let n = 2; taken.has(id); n++) id = `${doc.id}-${n}`;
+    // Ids become file names, and vaccine packs are third-party input: never let one leave the directory.
+    const base = safeId(doc.id);
+    // Reserve file names too: an edited antibody may carry a different id than its file name.
+    const files = new Set((await readdir(this.antibodyDir)).map((f) => f.toLowerCase()));
+    const inUse = (x: string) => taken.has(x) || files.has(`${x}.yml`) || files.has(`${x}.yaml`);
+    let id = base;
+    for (let n = 2; inUse(id); n++) id = `${base}-${n}`;
     const final = { ...doc, id };
     const path = join(this.antibodyDir, `${id}.yml`);
     await writeFile(path, header(final) + ruleToYaml(final));
@@ -157,10 +162,24 @@ export class Store {
   }
 }
 
+/** A file-name-safe antibody id: lowercase letters, digits and dashes. */
+export function safeId(id: string): string {
+  return (
+    String(id)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80)
+      .replace(/-+$/, "") || "antibody"
+  );
+}
+
 function header(doc: RuleDoc): string {
   const meta = antibodyMeta(doc);
   const lines = ["# bugvax antibody: an ast-grep rule learned from a real bug fix."];
-  if (meta?.source.commit) lines.push(`# Source: ${meta.source.commit.slice(0, 12)} "${meta.source.subject}"`);
-  else if (meta) lines.push(`# Source: ${meta.source.subject}`);
+  // One line: a newline in a commit subject or an agent's description would otherwise end the comment.
+  const subject = meta?.source.subject.replace(/\s+/g, " ").trim();
+  if (meta?.source.commit) lines.push(`# Source: ${meta.source.commit.slice(0, 12)} "${subject}"`);
+  else if (meta) lines.push(`# Source: ${subject}`);
   return lines.join("\n") + "\n";
 }

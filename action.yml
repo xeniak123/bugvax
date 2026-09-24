@@ -7,13 +7,13 @@ branding:
 
 inputs:
   base:
-    description: Git ref to compare against. Defaults to the pull request's base branch; without one, the whole repository is scanned.
+    description: Branch, tag or commit to compare against. Defaults to the pull request's base branch; without one, the whole repository is scanned.
     required: false
     default: ""
   version:
-    description: bugvax version to run (npm dist-tag or version).
+    description: bugvax version to run (npm version or dist-tag). Defaults to the version of this action, so pinning the action pins bugvax too.
     required: false
-    default: latest
+    default: ""
   args:
     description: Extra arguments for `bugvax check` / `bugvax scan`.
     required: false
@@ -30,12 +30,14 @@ runs:
         ARGS: ${{ inputs.args }}
       run: |
         set -euo pipefail
+        VERSION="${VERSION:-$(node -p "require(process.env.GITHUB_ACTION_PATH + '/package.json').version")}"
         if [ -n "$BASE" ]; then
           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
             git fetch --no-tags --quiet --unshallow origin
           fi
-          git fetch --no-tags --quiet origin "$BASE"
-          npx -y "bugvax@${VERSION}" check --base "origin/${BASE}" $ARGS
+          # A branch, tag or SHA: compare against exactly what was fetched.
+          git fetch --no-tags --quiet origin "${BASE#origin/}"
+          npx -y "bugvax@${VERSION}" check --base "$(git rev-parse FETCH_HEAD)" $ARGS
         else
           npx -y "bugvax@${VERSION}" scan $ARGS
         fi

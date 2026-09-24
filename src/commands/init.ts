@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { git, repoRoot } from "../core/git.js";
 import { Store } from "../core/store.js";
 import { header, pc } from "../ui.js";
@@ -12,7 +13,7 @@ export interface InitOptions {
   codex?: boolean;
   mcp?: boolean;
   gitHook?: boolean;
-  /** Override the command hooks run (defaults to `npx -y bugvax`). */
+  /** Override the command hooks run (defaults to `npx -y --loglevel=error bugvax`). */
   command?: string;
 }
 
@@ -22,7 +23,8 @@ export async function initCommand(opts: InitOptions): Promise<number> {
   const root = await repoRoot(process.cwd());
   const store = new Store(root);
   const created = await store.init();
-  const bin = opts.command ?? "npx -y bugvax";
+  // --loglevel=error keeps npm notices out of the feedback a blocking hook gives the agent.
+  const bin = opts.command ?? "npx -y --loglevel=error bugvax";
   header("init", root);
   console.log(created ? pc.green("  ✓ created .bugvax/") : pc.dim("  · .bugvax/ already exists"));
 
@@ -69,31 +71,68 @@ function hasBugvax(entries: unknown[]): boolean {
   return JSON.stringify(entries).includes(MARKER);
 }
 
-/** Claude Code: PostToolUse on every edit; exit code 2 hands findings back to the agent. */
+/**
+ * Claude Code, the same setup as the bugvax plugin:
+ *  - SessionStart: a briefing on the bugs this repository fixed before and where copies still live
+ *  - PostToolUse: every edit is checked; exit code 2 hands findings back to the agent
+ *  - Stop: the agent's changes are checked before it finishes
+ *  - the bugvax skill in .claude/skills/bugvax
+ */
 export async function installClaudeCodeHook(root: string, bin: string): Promise<string> {
-  let already = false;
+  const hook = (args: string) => ({ type: "command", command: `${bin} ${args}`, timeout: 60 });
+  const events: [string, Json][] = [
+    ["SessionStart", { hooks: [hook("context --hook claude-code")] }],
+    ["PostToolUse", { matcher: "Edit|Write|MultiEdit", hooks: [hook("check --hook claude-code")] }],
+    ["Stop", { hooks: [hook("check --hook claude-code-stop")] }],
+  ];
+  const added: string[] = [];
   const msg = await editJson(join(root, ".claude", "settings.json"), (s) => {
     s.hooks ??= {};
-    s.hooks.PostToolUse ??= [];
-    if (hasBugvax(s.hooks.PostToolUse)) return ((already = true), null);
-    s.hooks.PostToolUse.push({ matcher: "Edit|Write|MultiEdit", hooks: [{ type: "command", command: `${bin} check --hook claude-code` }] });
-    return pc.green("  ✓ Claude Code: every edit is checked (.claude/settings.json)");
+    for (const [event, entry] of events) {
+      s.hooks[event] ??= [];
+      if (hasBugvax(s.hooks[event])) continue;
+      s.hooks[event].push(entry);
+      added.push(event);
+    }
+    return added.length ? pc.green(`  ✓ Claude Code: session briefing, a check after every edit and before finishing (.claude/settings.json)`) : null;
   });
-  return already ? pc.dim("  · Claude Code hook already installed") : msg;
+  const skill = await installSkill(root);
+  const lines = [added.length || msg ? msg : pc.dim("  · Claude Code hooks already installed"), skill].filter(Boolean);
+  return lines.join("\n");
 }
 
-/** Cursor: a `stop` hook. If the finished work re-introduces a known bug, the agent gets a follow-up turn to fix it. */
+/** Copy the bugvax skill, which tells the agent how to use bugvax, into .claude/skills. */
+async function installSkill(root: string): Promise<string> {
+  const target = join(root, ".claude", "skills", "bugvax", "SKILL.md");
+  if (existsSync(target)) return pc.dim("  · Claude Code skill already installed");
+  const source = fileURLToPath(new URL("../../plugin/skills/bugvax/SKILL.md", import.meta.url));
+  if (!existsSync(source)) return "";
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, await readFile(source, "utf8"));
+  return pc.green("  ✓ Claude Code skill (.claude/skills/bugvax/SKILL.md)");
+}
+
+/**
+ * Cursor: `afterFileEdit` remembers which files the agent edited, and a `stop` hook checks them.
+ * If the finished work re-introduces a known bug, the agent gets a follow-up turn to fix it.
+ */
 export async function installCursorHook(root: string, bin: string): Promise<string> {
-  let already = false;
+  let added = 0;
   const msg = await editJson(join(root, ".cursor", "hooks.json"), (s) => {
     s.version ??= 1;
     s.hooks ??= {};
-    s.hooks.stop ??= [];
-    if (hasBugvax(s.hooks.stop)) return ((already = true), null);
-    s.hooks.stop.push({ command: `${bin} check --hook cursor` });
-    return pc.green("  ✓ Cursor: the agent's changes are checked before it finishes (.cursor/hooks.json)");
+    for (const [event, command] of [
+      ["afterFileEdit", `${bin} check --hook cursor-edit`],
+      ["stop", `${bin} check --hook cursor`],
+    ]) {
+      s.hooks[event] ??= [];
+      if (hasBugvax(s.hooks[event])) continue;
+      s.hooks[event].push({ command });
+      added++;
+    }
+    return added ? pc.green("  ✓ Cursor: the files the agent edits are checked before it finishes (.cursor/hooks.json)") : null;
   });
-  return already ? pc.dim("  · Cursor hook already installed") : msg;
+  return added ? msg : pc.dim("  · Cursor hook already installed");
 }
 
 /** Gemini CLI: AfterTool on file writes; findings are appended to the tool result. */

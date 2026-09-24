@@ -7,6 +7,8 @@ npx bugvax learn    # learn from your bug-fix history
 npx bugvax fix      # repair every latent copy of those bugs
 ```
 
+**Website:** [xeniak123.github.io/bugvax](https://xeniak123.github.io/bugvax/) · **Claude Code plugin:** `/plugin marketplace add xeniak123/bugvax` then `/plugin install bugvax@bugvax`
+
 <p align="center">
   <img src="docs/demo.svg" width="860" alt="Terminal recording: bugvax learns 6 antibodies from a demo repository's bug fixes, finds 6 hidden copies of those bugs, and fixes 5 of them with one command">
 </p>
@@ -73,15 +75,42 @@ In our run bugvax learned 6 antibodies and found all 6 hidden bugs, with no fals
 
 ## Guard your AI agent
 
-After an agent edits code, bugvax checks the lines it changed and hands any re-introduced bug straight back to the agent. The agent then fixes it before it tells you it is "done".
+Agents write new code by imitating the code around it, including the copies of old bugs that are still in it. bugvax works at three points:
+
+1. **Before**: at session start the agent gets a short briefing: the bug classes this repository already fixed, and the exact places where known-bad copies still live, so it does not use them as examples.
+2. **During**: after every edit, bugvax checks the lines the agent changed and hands any re-introduced bug straight back to it, with the proven fix and the commit where it was fixed before.
+3. **After**: before the agent may say "done", bugvax checks everything it changed in the session. Your own uncommitted work from before the session is never blamed on the agent.
+
+### Does it make the agent better?
+
+We measured it: headless Claude Code (Sonnet) got everyday tasks like "add `withdraw()`, like `deposit()`", where the code it imitates still hides a bug the repository fixed elsewhere.
+
+| | runs that brought a fixed bug back, without bugvax | with bugvax |
+|---|---|---|
+| this project's own conventions (a money helper, an outbox, a tenant filter, …) | 5 / 6 (11 bugs) | **0 / 6** |
+| classic bug classes (no timeout, un-awaited commit, …) | 2 / 12 | **0 / 12** |
+
+Every task was still completed, and no run touched an antibody to get past a check. A strong model already knows most generic pitfalls. It cannot know your project's own rules, and those are exactly what bugvax learns from your history. Method, caveats and raw results: [eval/](eval/README.md).
+
+### Claude Code plugin
+
+```
+/plugin marketplace add xeniak123/bugvax
+/plugin install bugvax@bugvax
+```
+
+The plugin installs all three hooks, the bugvax MCP server and a skill that teaches the agent the workflow (check before copying code, learn from every fix it makes). It does nothing in repositories without `.bugvax/`. Prefer project settings that your team shares? `npx bugvax init --claude-code` writes the same hooks and skill into `.claude/`.
+
+### Other agents
 
 | Agent | Setup | How the agent hears about it |
 |---|---|---|
-| Claude Code | `bugvax init --claude-code` | `PostToolUse` hook after every edit |
-| Cursor | `bugvax init --cursor` | `stop` hook: the agent gets a follow-up turn before it finishes |
+| Claude Code | plugin, or `bugvax init --claude-code` | `SessionStart` briefing, `PostToolUse` after every edit, `Stop` before it finishes |
+| Cursor | `bugvax init --cursor` | `afterFileEdit` records the agent's files; the `stop` hook gives it a follow-up turn to fix them |
 | Gemini CLI | `bugvax init --gemini` | `AfterTool` hook on `write_file` / `replace` |
 | Codex | `bugvax init --codex` | `PostToolUse` hook on `apply_patch` |
 | Any MCP client | `bugvax init --mcp` | MCP tools (below) |
+| Anything else | `npx bugvax context >> AGENTS.md` | the same briefing, as text |
 
 What the agent sees:
 
@@ -115,6 +144,8 @@ Please fix these before continuing.
 { "mcpServers": { "bugvax": { "command": "npx", "args": ["-y", "bugvax", "mcp"] } } }
 ```
 
+The server works on the git repository it is started in. Clients with one global config (Claude Desktop, Windsurf, …) should set `"env": { "BUGVAX_ROOT": "/path/to/repo" }`; otherwise bugvax uses the repository of an absolute file path the agent passes, then the client's MCP roots. Relative paths in tool calls are relative to the repository root.
+
 ## CI
 
 ```yaml
@@ -140,7 +171,7 @@ bugvax needs a model only while **learning**. `scan`, `check` and `fix` never ca
 | **Claude Code** | default when no API key is set | Uses your Claude subscription through `claude -p`, in a locked-down mode: no tools, no MCP servers, no hooks, no CLAUDE.md. |
 | **Anthropic API** | when `ANTHROPIC_API_KEY` is set, or with `--provider anthropic` | Defaults to `claude-opus-5`. Change it with `--model`. |
 
-The model sees only the diff of each fix it analyzes, plus snippets of the code where a new rule matches (for the review step).
+What the model sees: for each fix it analyzes, the commit message and diff, up to about 25 lines of surrounding code from before the fix, related test changes, and short snippets of today's code where a new rule matches (for the review step). Nothing else in your repository is sent.
 
 A fix usually takes 1–4 model calls. With the Claude Code backend those calls count toward your plan's usage limits, just like your normal sessions, so `--limit` (default 15 fixes per run) keeps each run small. If the backend hits a usage limit, bugvax stops right away. The fixes it could not analyze are left for the next `bugvax learn`, not marked as failed.
 
@@ -152,6 +183,7 @@ A fix usually takes 1–4 model calls. With the Claude Code backend those calls 
 | `bugvax scan [paths]` | Find every match of every antibody: latent copies of old bugs |
 | `bugvax fix [paths]` | Apply proven fixes to those matches (`--dry-run` to preview) |
 | `bugvax check` | Check uncommitted changes. `--staged` for pre-commit, `--base <ref>` for CI, `--hook <agent>` for agents |
+| `bugvax context` | Print the agent briefing: known bug classes and where latent copies still live |
 | `bugvax vaccinate [packs]` | List or install vaccine packs learned from public projects |
 | `bugvax list` | List antibodies and where each one came from |
 | `bugvax init` | Create `.bugvax/`. `--claude-code`, `--cursor`, `--gemini`, `--codex`, `--mcp` and `--git-hook` install the integrations |
@@ -215,7 +247,9 @@ npm run dev -- learn --dry-run
 npm run build
 ```
 
-Releasing: `npm version patch && git push --follow-tags`. The release workflow tests, publishes to npm with provenance, creates the GitHub release and moves the `v1` action tag.
+Releasing: `npm version patch && git push --follow-tags`. The release workflow builds and tests without any credentials, publishes the tested tarball to npm with provenance, creates the GitHub release and moves the `v1` action tag. See [CHANGELOG.md](CHANGELOG.md).
+
+Agent eval: `node scripts/eval-agents.mjs --suite ledger --trials 2 --model sonnet` (runs `claude -p`, so it uses your Claude plan).
 
 ## License
 

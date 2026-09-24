@@ -1,9 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describeMatches } from "../agent.js";
 import { scan, type Match, type RuleDoc } from "../core/engine.js";
 import {
+  canonical,
   changedFiles,
   diffHunks,
   git,
@@ -28,7 +30,7 @@ export interface CheckOptions {
   json?: boolean;
 }
 
-export const HOOK_TYPES = ["claude-code", "cursor", "gemini", "codex"] as const;
+export const HOOK_TYPES = ["claude-code", "claude-code-stop", "cursor", "cursor-edit", "gemini", "codex"] as const;
 export type HookType = (typeof HOOK_TYPES)[number];
 
 /**
@@ -40,7 +42,10 @@ export async function checkCommand(files: string[], opts: CheckOptions): Promise
   const root = await repoRoot(process.cwd());
   const store = new Store(root);
   const antibodies = await store.antibodies();
-  if (!antibodies.length) return 0;
+  if (!antibodies.length) {
+    if (opts.json) console.log("[]");
+    return 0;
+  }
   const rules = antibodies.map((a) => a.doc);
   const globs = await excludeGlobs(store);
 
@@ -76,12 +81,13 @@ export async function checkCommand(files: string[], opts: CheckOptions): Promise
   return 1;
 }
 
-async function excludeGlobs(store: Store): Promise<string[]> {
+export async function excludeGlobs(store: Store): Promise<string[]> {
   return (await store.config()).exclude.map((g) => (g.startsWith("!") ? g : `!${g}`));
 }
 
 function onChangedLines(matches: Match[], changed: Map<string, Hunk[]>): Match[] {
-  return matches.filter((m) => changed.get(m.file)?.some((h) => h.newLines > 0 && overlaps([m.line, m.endLine], newRange(h))));
+  // A pure deletion (newLines 0) counts too: deleting a guard line is a common way to re-introduce a bug.
+  return matches.filter((m) => changed.get(m.file)?.some((h) => overlaps([m.line, m.endLine], newRange(h))));
 }
 
 /**
@@ -132,6 +138,11 @@ async function scanIndex(rules: RuleDoc[], root: string, paths: string[], globs:
 
 interface HookInput {
   cwd?: string;
+  session_id?: string;
+  conversation_id?: string;
+  stop_hook_active?: boolean;
+  loop_count?: number;
+  file_path?: string;
   tool_name?: string;
   tool_input?: { file_path?: string; path?: string; command?: string; patch?: string; input?: string };
   workspace_roots?: string[];
@@ -150,10 +161,12 @@ export function patchFiles(patch: string): string[] {
 /**
  * Agent hooks. After an agent edits code, check the changed lines and hand any re-introduced bug
  * back to the agent in the format its hook system understands:
- *  - claude-code: PostToolUse, exit code 2 + stderr
- *  - gemini:      AfterTool, stdout {hookSpecificOutput.additionalContext}
- *  - codex:       PostToolUse, stdout {decision: "block", reason}
- *  - cursor:      stop, stdout {followup_message}: the agent gets one more turn to fix it
+ *  - claude-code:      PostToolUse, exit code 2 + stderr
+ *  - claude-code-stop: Stop, exit code 2 + stderr: the agent keeps working until its changes are clean
+ *  - gemini:           AfterTool, stdout {hookSpecificOutput.additionalContext}
+ *  - codex:            PostToolUse, stdout {decision: "block", reason}
+ *  - cursor-edit:      afterFileEdit, remembers which files the agent edited
+ *  - cursor:           stop, stdout {followup_message}: the agent gets one more turn to fix it
  */
 async function hookCheck(kind: string): Promise<number> {
   if (!(HOOK_TYPES as readonly string[]).includes(kind)) {
@@ -161,38 +174,54 @@ async function hookCheck(kind: string): Promise<number> {
     return 1;
   }
   const type = kind as HookType;
-  let input: HookInput = {};
-  try {
-    input = JSON.parse((await readStdin()) || "{}") as HookInput;
-  } catch {
-    /* no or malformed payload: treat as empty */
-  }
+  const input = await readHookInput();
   const cwd = input.cwd ?? input.workspace_roots?.[0] ?? process.cwd();
-  const report = await hookReport(type, input, cwd).catch(() => null);
+  if (type === "cursor-edit") {
+    await recordCursorEdit(input, cwd).catch(() => {});
+    return 0;
+  }
+  let report: string | null;
+  try {
+    report = await (type === "claude-code-stop" || type === "cursor" ? stopReport(type, input, cwd) : hookReport(type, input, cwd));
+  } catch (e) {
+    // Never block the agent on bugvax's own problem, but do not fail silently either: Claude Code
+    // shows the stderr of a hook that exits 1 to the user.
+    if (type !== "claude-code" && type !== "claude-code-stop") return emit(type, null);
+    console.error(`bugvax could not check this change: ${(e as Error).message.split("\n")[0]}`);
+    return 1;
+  }
   return emit(type, report);
 }
 
+export async function readHookInput(): Promise<HookInput> {
+  try {
+    return JSON.parse((await readStdin()) || "{}") as HookInput;
+  } catch {
+    return {}; // no or malformed payload
+  }
+}
+
 async function hookReport(type: HookType, input: HookInput, cwd: string): Promise<string | null> {
-  let files: string[] | undefined;
-  if (type === "claude-code" || type === "gemini") {
-    const f = input.tool_input?.file_path ?? input.tool_input?.path;
-    if (!f) return null;
-    files = [f];
-  } else if (type === "codex") {
+  let files: string[];
+  if (type === "codex") {
     const t = input.tool_input ?? {};
     files = [...patchFiles(t.command ?? t.patch ?? t.input ?? ""), ...(t.file_path ? [t.file_path] : [])];
-    if (!files.length) return null;
+  } else {
+    const f = input.tool_input?.file_path ?? input.tool_input?.path;
+    files = f ? [f] : [];
   }
-  const root = await repoRoot(cwd);
+  if (!files.length) return null;
+  const root = await repoRoot(cwd).catch(() => null);
+  if (!root) return null; // not a git repository: nothing to check
   const store = new Store(root);
   const antibodies = await store.antibodies();
   if (!antibodies.length) return null;
-  const only = files?.map((f) => repoRelative(root, f, cwd)).filter((p): p is string => p !== null);
-  if (only && !only.length) return null;
+  const only = files.map((f) => repoRelative(root, f, cwd)).filter((p): p is string => p !== null);
+  if (!only.length) return null;
   const matches = await checkWorkingChanges(root, antibodies.map((a) => a.doc), await excludeGlobs(store), { only });
   if (!matches.length) return null;
   return [
-    `bugvax: ${type === "cursor" ? "your changes re-introduce" : "this edit re-introduces"} ${plural(matches.length, "bug")} that ${matches.length === 1 ? "was" : "were"} already fixed before.`,
+    `bugvax: this edit re-introduces ${plural(matches.length, "bug")} that ${matches.length === 1 ? "was" : "were"} already fixed before.`,
     "",
     describeMatches(matches, antibodies),
     "",
@@ -200,9 +229,56 @@ async function hookReport(type: HookType, input: HookInput, cwd: string): Promis
   ].join("\n");
 }
 
+/** The same findings block an agent from finishing at most this often; then it may stop and explain. */
+const MAX_BLOCKS_PER_FINDING = 2;
+const MAX_BLOCKS_PER_SESSION = 6;
+
+/**
+ * Before the agent finishes: check everything it changed in this session. Claude Code sessions
+ * are compared with the snapshot `bugvax context` took at session start, so the user's own
+ * uncommitted work is not blamed on the agent. Cursor sessions use the files its afterFileEdit
+ * hook recorded.
+ */
+async function stopReport(type: HookType, input: HookInput, cwd: string): Promise<string | null> {
+  const root = await repoRoot(cwd).catch(() => null);
+  if (!root) return null;
+  const store = new Store(root);
+  const antibodies = await store.antibodies();
+  if (!antibodies.length) return null;
+  const sessionId = input.session_id ?? input.conversation_id;
+  const session = await readSession(root, sessionId);
+  let only: string[] | undefined;
+  if (type === "cursor") {
+    only = session.edited;
+    if (!only.length) return null;
+  } else if (session.baseline) {
+    only = await touchedSince(root, session.baseline);
+    if (!only.length) return null;
+  }
+  const matches = await checkWorkingChanges(root, antibodies.map((a) => a.doc), await excludeGlobs(store), { only });
+  if (!matches.length) {
+    if (Object.keys(session.blocks).length) await writeSession(root, sessionId, { ...session, blocks: {} });
+    return null;
+  }
+  const fingerprint = matches.map((m) => `${m.ruleId}:${m.file}:${m.text}`).sort().join("\n");
+  const key = createHash("sha1").update(fingerprint).digest("hex").slice(0, 16);
+  const total = Object.values(session.blocks).reduce((n, c) => n + c, 0);
+  if ((session.blocks[key] ?? 0) >= MAX_BLOCKS_PER_FINDING || total >= MAX_BLOCKS_PER_SESSION) return null;
+  await writeSession(root, sessionId, { ...session, blocks: { ...session.blocks, [key]: (session.blocks[key] ?? 0) + 1 } });
+  return [
+    `bugvax: before you finish: your changes re-introduce ${plural(matches.length, "bug")} that this repository already fixed before.`,
+    "",
+    describeMatches(matches, antibodies),
+    "",
+    "Fix them now (where a proven fix is shown, `npx bugvax fix <file>` applies it), then finish.",
+    "If a finding is a false positive, do not work around it or edit .bugvax/: say which one and explain why.",
+  ].join("\n");
+}
+
 function emit(type: HookType, report: string | null): number {
   switch (type) {
     case "claude-code":
+    case "claude-code-stop":
       if (!report) return 0;
       console.error(report);
       return 2;
@@ -215,7 +291,81 @@ function emit(type: HookType, report: string | null): number {
     case "cursor":
       console.log(JSON.stringify(report ? { followup_message: report } : {}));
       return 0;
+    case "cursor-edit":
+      return 0;
   }
+}
+
+/** Per-session hook state, kept outside the repository. */
+interface Session {
+  /** Hashes of the source files that were already uncommitted when the session started. */
+  baseline?: Record<string, string>;
+  /** Files the agent edited (Cursor afterFileEdit). */
+  edited: string[];
+  /** How often each set of findings has blocked the agent from finishing. */
+  blocks: Record<string, number>;
+}
+
+function sessionFile(root: string, sessionId: string): string {
+  const repo = createHash("sha1").update(canonical(root)).digest("hex").slice(0, 12);
+  return join(tmpdir(), "bugvax-sessions", `${repo}-${sessionId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 80)}.json`);
+}
+
+async function readSession(root: string, sessionId: string | undefined): Promise<Session> {
+  const empty: Session = { edited: [], blocks: {} };
+  if (!sessionId) return empty;
+  try {
+    return { ...empty, ...(JSON.parse(await readFile(sessionFile(root, sessionId), "utf8")) as Partial<Session>) };
+  } catch {
+    return empty;
+  }
+}
+
+async function writeSession(root: string, sessionId: string | undefined, session: Session): Promise<void> {
+  if (!sessionId) return;
+  const file = sessionFile(root, sessionId);
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify(session));
+}
+
+/** Uncommitted source files (changed or untracked) with a hash of their current content. */
+async function workingSnapshot(root: string): Promise<Record<string, string>> {
+  const files = [...(await changedFiles(root, ["HEAD"])), ...(await untrackedFiles(root))].filter((p) => languageOf(p));
+  const out: Record<string, string> = {};
+  for (const f of files) {
+    try {
+      out[f] = createHash("sha1").update(await readFile(join(root, f))).digest("hex");
+    } catch {
+      /* deleted in the meantime */
+    }
+  }
+  return out;
+}
+
+/** Remember what was already uncommitted when an agent session started (SessionStart). */
+export async function recordSessionStart(root: string, sessionId: string | undefined): Promise<void> {
+  if (!sessionId) return;
+  const session = await readSession(root, sessionId);
+  if (session.baseline) return; // a resumed or compacted session keeps its original snapshot
+  await writeSession(root, sessionId, { ...session, baseline: await workingSnapshot(root) });
+}
+
+/** Uncommitted source files whose content changed since the baseline snapshot. */
+async function touchedSince(root: string, baseline: Record<string, string>): Promise<string[]> {
+  const now = await workingSnapshot(root);
+  return Object.keys(now).filter((f) => baseline[f] !== now[f]);
+}
+
+async function recordCursorEdit(input: HookInput, cwd: string): Promise<void> {
+  const file = input.file_path ?? input.tool_input?.file_path;
+  const sessionId = input.conversation_id ?? input.session_id;
+  if (!file || !sessionId) return;
+  const root = await repoRoot(cwd);
+  const rel = repoRelative(root, file, cwd);
+  if (!rel || !languageOf(rel)) return;
+  const session = await readSession(root, sessionId);
+  if (session.edited.includes(rel)) return;
+  await writeSession(root, sessionId, { ...session, edited: [...session.edited, rel] });
 }
 
 async function readStdin(): Promise<string> {

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "deposit() dereferences the result of getAccount() at line 7 (account.balance += cents) and line 9 (return account.balance) with no null check, no optional chaining, and no earlier guard. This is the exact pattern of the original transfer() bug: getAccount returns null for a missing or closed account, so a deposit into a closed account throws a TypeError before bus.emit runs. The identical fix applies -- insert `if (!account) throw new Error(\"account not found or closed\");` immediately after the call. It is an exported production function, not test code and not a deliberately unguarded path."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"deposit() dereferences the result of getAccount() at line 7 (account.balance += cents) and line 9 (return account.balance) with no null check, no optional chaining, and no earlier guard. This is the exact pattern of the original transfer() bug: getAccount returns null for a missing or closed account, so a deposit into a closed account throws a TypeError before bus.emit runs. The identical fix applies -- insert `if (!account) throw new Error(\\\"account not found or closed\\\");` immediately after the call. It is an exported production function, not test code and not a deliberately unguarded path.\"}]}"
+}

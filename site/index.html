@@ -16,10 +16,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css">
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js" defer></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"},"integrity":{"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js":"sha384-IDC7sAMAIMB/TZ6dgKKPPAKZ2bXXXP8+FBMBC8cU319eBhKITx+PaalhfDkDNH28","https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/utils/BufferGeometryUtils.js":"sha384-wOjwauvHlJO7K6APr7FmMGH2nupQa3Ndzas9bJZhsAMOK055efJud8ns4aYmASKv"}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js" integrity="sha384-tKsJDT6PlUI0pSBt9/sBKJluKgA19/a6mBrDsZaXotLB4ZYfMGM6xt6/WgGpYhTm" crossorigin="anonymous" defer></script>
 <script type="module" src="main.js"></script>
 </head>
 <body>
@@ -180,7 +180,7 @@ src/refunds.ts:6  [unawaited-db-commit]
         <p class="body" data-reveal>A real, unedited session on the demo repository: learn, fix, scan. Only the waits for the model are shortened.</p>
       </div>
       <div class="player" data-reveal>
-        <pre class="term" data-term tabindex="0" aria-label="Recording of a bugvax session"></pre>
+        <pre class="term" data-term data-lenis-prevent tabindex="0" aria-label="Recording of a bugvax session"></pre>
         <div class="player-bar">
           <button class="icon-btn" type="button" data-play aria-label="Play"><svg data-icon="play"></svg></button>
           <button class="icon-btn" type="button" data-restart aria-label="Restart"><svg data-icon="arrow-counter-clockwise"></svg></button>
@@ -243,7 +243,8 @@ src/refunds.ts:6  [unawaited-db-commit]
           <h3>Mutable default argument</h3>
           <span class="spacer"></span>
           <pre class="antigen">def add_item(cart, item, <b>tags=[]</b>):</pre>
-          <p class="note">Flagged, not auto-fixed: the real fix adds a guard line, so no one-line template could prove itself.</p>
+          <pre class="remedy">def add_item(cart, item, tags=None):
+    tags = [] if tags is None else tags</pre>
         </article>
         <article class="cell cell-c" data-reveal>
           <span class="kind">typescript</span>
@@ -283,6 +284,45 @@ next();</pre>
       <div class="proof-notes">
         <p data-reveal><strong>One fix was skipped.</strong> "Apply discount before tax" is business logic, not a reusable pattern, so no rule was forced out of it.</p>
         <p data-reveal><strong>Checks cost nothing.</strong> A model runs only while learning. Scans and hooks are plain ast-grep rules that finish in milliseconds.</p>
+      </div>
+      <div class="trial">
+        <div class="trial-head">
+          <h3 class="h3" data-reveal>And with an AI agent at the keyboard?</h3>
+          <p class="body" data-reveal>Claude Code got everyday tasks like "add <code>withdraw()</code>, like <code>deposit()</code>", where the code it imitates still hides a bug that was already fixed elsewhere. The same model and the same tasks, with and without the bugvax plugin setup.</p>
+        </div>
+        <div class="trial-grid">
+          <div class="trial-case" data-reveal>
+            <span class="kind">this project's own conventions</span>
+            <p class="trial-what">A money helper, an outbox, a tenant filter, a timestamp parser: rules that exist only in the git history.</p>
+            <div class="trial-row">
+              <span class="trial-label">without bugvax</span>
+              <span class="trial-bar is-magenta" style="--v: 0.8333"><i></i></span>
+              <span class="trial-num is-magenta">5 / 6</span>
+            </div>
+            <div class="trial-row">
+              <span class="trial-label">with bugvax</span>
+              <span class="trial-bar is-gold" style="--v: 0"><i></i></span>
+              <span class="trial-num is-gold">0 / 6</span>
+            </div>
+            <p class="trial-foot">runs that brought a fixed bug back (11 bugs without bugvax)</p>
+          </div>
+          <div class="trial-case" data-reveal>
+            <span class="kind">classic bug classes</span>
+            <p class="trial-what">No timeout, an un-awaited commit, a missing return, a mutable default: a strong model knows most of these.</p>
+            <div class="trial-row">
+              <span class="trial-label">without bugvax</span>
+              <span class="trial-bar is-magenta" style="--v: 0.1667"><i></i></span>
+              <span class="trial-num is-magenta">2 / 12</span>
+            </div>
+            <div class="trial-row">
+              <span class="trial-label">with bugvax</span>
+              <span class="trial-bar is-gold" style="--v: 0"><i></i></span>
+              <span class="trial-num is-gold">0 / 12</span>
+            </div>
+            <p class="trial-foot">runs that brought a fixed bug back</p>
+          </div>
+        </div>
+        <p class="trial-note" data-reveal>Every task was still completed, and no run touched an antibody to get past a check. Claude Sonnet, two runs per task, scored deterministically. <a href="https://github.com/xeniak123/bugvax/tree/main/eval">Method, caveats and raw results</a>.</p>
       </div>
     </div>
   </section>

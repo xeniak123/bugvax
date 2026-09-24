@@ -1,0 +1,14 @@
+{
+  "json": {
+    "fix": "toCents($AMOUNT)",
+    "generalizable": true,
+    "id": "manual-float-to-cents-conversion",
+    "message": "Math.round($AMOUNT * 100) loses a cent for some values (0.29 * 100 === 28.999999999999996); use toCents($AMOUNT)",
+    "note": "Multiplying a decimal currency amount by 100 in binary floating point can land just below the .5 boundary, so Math.round rounds down and the result is off by one cent. Use the shared toCents() helper from ./money, which performs the conversion safely, instead of hand-rolling the arithmetic.",
+    "reason": "This is a recurring, syntactically detectable API misuse: converting a currency amount to cents with floating-point arithmetic (Math.round(x * 100)) instead of the project's toCents() helper.",
+    "rule_yaml": "rule:\n  any:\n    - pattern: Math.round($AMOUNT * 100)\n    - pattern: Math.round(100 * $AMOUNT)\n",
+    "severity": "error",
+    "title": "Currency converted to cents with floating-point math instead of toCents()"
+  },
+  "raw": "{\"fix\":\"toCents($AMOUNT)\",\"generalizable\":true,\"id\":\"manual-float-to-cents-conversion\",\"message\":\"Math.round($AMOUNT * 100) loses a cent for some values (0.29 * 100 === 28.999999999999996); use toCents($AMOUNT)\",\"note\":\"Multiplying a decimal currency amount by 100 in binary floating point can land just below the .5 boundary, so Math.round rounds down and the result is off by one cent. Use the shared toCents() helper from ./money, which performs the conversion safely, instead of hand-rolling the arithmetic.\",\"reason\":\"This is a recurring, syntactically detectable API misuse: converting a currency amount to cents with floating-point arithmetic (Math.round(x * 100)) instead of the project's toCents() helper.\",\"rule_yaml\":\"rule:\\n  any:\\n    - pattern: Math.round($AMOUNT * 100)\\n    - pattern: Math.round(100 * $AMOUNT)\\n\",\"severity\":\"error\",\"title\":\"Currency converted to cents with floating-point math instead of toCents()\"}"
+}

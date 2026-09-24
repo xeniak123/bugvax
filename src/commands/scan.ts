@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { scan } from "../core/engine.js";
-import { repoRoot } from "../core/git.js";
+import { repoRelative, repoRoot } from "../core/git.js";
 import { Store } from "../core/store.js";
 import { githubAnnotations, header, pc, plural, printFindings } from "../ui.js";
 
@@ -14,7 +16,17 @@ export async function scanCommand(paths: string[], opts: { json?: boolean }): Pr
     return 0;
   }
   const globs = config.exclude.map((g) => (g.startsWith("!") ? g : `!${g}`));
-  const matches = await scan(antibodies.map((a) => a.doc), paths.length ? paths : ["."], root, { globs });
+  // Paths are relative to where the user is, but ast-grep runs from the repository root.
+  const targets: string[] = [];
+  for (const p of paths) {
+    const rel = repoRelative(root, p);
+    if (rel === null || !existsSync(join(root, rel))) {
+      console.error(`bugvax: ${p} ${rel === null ? `is outside the repository ${root}` : "does not exist"}`);
+      return 2;
+    }
+    targets.push(rel || ".");
+  }
+  const matches = await scan(antibodies.map((a) => a.doc), targets.length ? targets : ["."], root, { globs });
   if (opts.json) {
     console.log(JSON.stringify(matches, null, 2));
     return matches.length ? 1 : 0;

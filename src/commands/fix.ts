@@ -1,6 +1,6 @@
 import type { Match } from "../core/engine.js";
 import { runFix } from "../core/fixer.js";
-import { repoRelative, repoRoot } from "../core/git.js";
+import { changedFiles, repoRelative, repoRoot } from "../core/git.js";
 import { Store } from "../core/store.js";
 import { codeLine, header, loc, pc, plural } from "../ui.js";
 
@@ -13,12 +13,19 @@ export async function fixCommand(paths: string[], opts: { dryRun?: boolean; json
   const store = new Store(root);
   const antibodies = await store.antibodies();
   if (!antibodies.length) {
-    console.log(pc.dim("\nNo antibodies yet. Run `bugvax learn` first."));
+    if (opts.json) console.log(JSON.stringify(opts.dryRun ? { fixable: [], manual: [] } : { applied: [], remaining: [] }));
+    else console.log(pc.dim("\nNo antibodies yet. Run `bugvax learn` first."));
     return 0;
   }
   const config = await store.config();
   const globs = config.exclude.map((g) => (g.startsWith("!") ? g : `!${g}`));
   const targets = paths.length ? paths.map((p) => repoRelative(root, p)).filter((p): p is string => p !== null) : ["."];
+  if (paths.length && !targets.length) {
+    console.error(`bugvax: ${paths.join(", ")} ${paths.length === 1 ? "is" : "are"} outside the repository ${root}`);
+    return 1;
+  }
+  // Files with the user's own uncommitted edits must not be reverted with `git checkout`.
+  const dirty = new Set(opts.dryRun ? [] : await changedFiles(root, ["HEAD"]));
   const { found, applied, remaining } = await runFix(
     antibodies.map((a) => a.doc),
     targets,
@@ -54,7 +61,16 @@ export async function fixCommand(paths: string[], opts: { dryRun?: boolean; json
     for (const m of stillFixable) console.log(`    ${loc(m)}  ${pc.dim(m.ruleId)}`);
   }
   printManual(remaining.filter((m) => !m.fix));
-  if (applied.length) console.log(pc.dim(`\n  Review the changes with ${pc.reset("git diff")}; undo with ${pc.reset("git checkout -- <file>")}.`));
+  if (applied.length) {
+    const hadEdits = [...new Set(applied.map((m) => m.file))].filter((f) => dirty.has(f));
+    console.log(
+      pc.dim(
+        hadEdits.length
+          ? `\n  Review the changes with ${pc.reset("git diff")}. ${hadEdits.join(", ")} already had uncommitted edits, so undo a fix there by hand, not with git checkout.`
+          : `\n  Review the changes with ${pc.reset("git diff")}; undo with ${pc.reset("git checkout -- <file>")}.`,
+      ),
+    );
+  }
   console.log();
   return remaining.length ? 1 : 0;
 }

@@ -2,7 +2,7 @@
 // Serves site/ locally for development: node scripts/serve-site.mjs [port]
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+import { extname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../site", import.meta.url));
@@ -19,9 +19,15 @@ const types = {
 };
 
 createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^([/\\])+/, "");
-  let file = join(root, path);
-  if (!file.startsWith(root)) {
+  let file;
+  try {
+    file = join(root, decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname));
+  } catch {
+    res.writeHead(400).end("bad request");
+    return;
+  }
+  const rel = relative(root, file);
+  if (rel.startsWith("..") || isAbsolute(rel)) {
     res.writeHead(403).end();
     return;
   }
@@ -33,4 +39,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end("not found");
   }
-}).listen(port, () => console.log(`bugvax site on http://localhost:${port}`));
+}).listen(port, "127.0.0.1", () => console.log(`bugvax site on http://localhost:${port}`));

@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "Exact clone of the fixed bug. monthlyTotals() accepts a tenantId parameter that is never used anywhere in the body, and calls the shared db singleton with only the SQL string. The query filters solely on account_id with no tenant predicate inlined in the SQL and no earlier guard or tenant-bound db handle, so it returns transactions from every tenant. Worse, the rows are aggregated into per-month totals, so foreign amounts are silently summed into another tenant's figures. Not test or dead code, and not an intentional cross-tenant aggregation (that would not take an unused tenantId). The same fix applies verbatim: db.query(sql, { tenantId })."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"Exact clone of the fixed bug. monthlyTotals() accepts a tenantId parameter that is never used anywhere in the body, and calls the shared db singleton with only the SQL string. The query filters solely on account_id with no tenant predicate inlined in the SQL and no earlier guard or tenant-bound db handle, so it returns transactions from every tenant. Worse, the rows are aggregated into per-month totals, so foreign amounts are silently summed into another tenant's figures. Not test or dead code, and not an intentional cross-tenant aggregation (that would not take an unused tenantId). The same fix applies verbatim: db.query(sql, { tenantId }).\"}]}"
+}

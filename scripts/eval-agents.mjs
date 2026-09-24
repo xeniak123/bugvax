@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 // Does an AI coding agent write better code with bugvax than without it?
 //
-// Each task asks Claude Code (headless, `claude -p`) to add code to the demo shop "in the style of"
-// an existing function. Those functions still contain latent copies of bugs the shop already fixed,
+// Each task asks Claude Code (headless, `claude -p`) to add code "in the style of" an existing
+// function. Those functions still contain latent copies of bugs the repository already fixed,
 // which is exactly how agents re-introduce old bugs: they imitate nearby code.
 //
+// Two suites:
+//   shop    the `bugvax demo` shop: classic bug classes a strong model often knows to avoid anyway
+//   ledger  scripts/eval-repo.mjs: this project's own conventions (a money helper, an outbox, a
+//           tenant filter, a UTC date parser, a nullable lookup) that exist only in its git history
+//
+// Conditions:
 //   baseline  plain Claude Code, no bugvax anywhere in the repository
 //   bugvax    the bugvax plugin setup: session briefing, check after every edit, check before
 //             finishing, the MCP server and the skill
 //
 // Scoring is deterministic: the repository's learned antibodies are run over the lines the agent
 // added, the task's expected symbol must exist, and the antibody files must be untouched.
+// Antibodies are learned from recorded model answers, so building the repositories costs nothing.
 //
-//   npm run build && node scripts/eval-agents.mjs --trials 2 --model sonnet
+//   npm run build && node scripts/eval-agents.mjs --suite ledger --trials 2 --model sonnet
 import { execFileSync, spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,11 +38,56 @@ const CONCURRENCY = Number(args.concurrency ?? 3);
 const OUT = resolve(args.out ?? join(repoRoot, "eval"));
 const ONLY = args.tasks ? new Set(args.tasks.split(",")) : null;
 const CONDITIONS = (args.conditions ?? "baseline,bugvax").split(",");
+const SUITE = args.suite ?? "shop";
 
-const TASKS = [
+const SUITES = {
+  shop: {
+    title: "demo shop: classic bug classes",
+    cache: join(repoRoot, "scripts", ".demo-cache"),
+    create: (work) => bugvax(work, ["demo", "template"]),
+    tasks: SHOP_TASKS(),
+  },
+  ledger: {
+    title: "ledger: project-specific conventions learned from its history",
+    cache: join(repoRoot, "scripts", ".eval-cache"),
+    create: (work) => sh(process.execPath, [join(here, "eval-repo.mjs"), "template"], work),
+    tasks: [
+      {
+        id: "withdraw",
+        exemplar: "deposit(): no null check on getAccount, Math.round cents, bus.emit",
+        file: "src/withdrawals.ts",
+        expect: /withdraw/,
+        prompt:
+          'Add an exported function withdraw(accountId: string, amount: number) in a new file src/withdrawals.ts. It works like deposit() in src/deposits.ts, but subtracts the amount, throws an Error when the balance is too low, and emits a "withdrawal.completed" event. Return the new balance.',
+      },
+      {
+        id: "export-csv",
+        exemplar: "monthlyTotals(): query without tenant scope, new Date(row.date)",
+        file: "src/exports.ts",
+        expect: /exportCsv/,
+        prompt:
+          'Add a new file src/exports.ts with an exported function exportCsv(tenantId: string, accountId: string): string that returns the account\'s transactions as CSV, one "id,cents,date" line per transaction with the date as an ISO string. Load the transactions the same way monthlyTotals() in src/reports.ts does.',
+      },
+      {
+        id: "charge-fee",
+        exemplar: "deposit(): no null check on getAccount, bus.emit",
+        file: "src/fees.ts",
+        expect: /chargeFee/,
+        prompt:
+          'In src/fees.ts, add an exported function chargeFee(accountId: string, amount: number) that deducts calculateFee(amount) cents from the account\'s balance and emits a "fee.charged" event with the account id and the fee, updating the account the same way deposit() in src/deposits.ts does. Return the fee.',
+      },
+    ],
+  },
+};
+const suite = SUITES[SUITE];
+if (!suite) throw new Error(`unknown suite ${SUITE}; use ${Object.keys(SUITES).join(" or ")}`);
+const TASKS = suite.tasks.filter((t) => !ONLY || ONLY.has(t.id));
+
+function SHOP_TASKS() {
+  return [
   {
     id: "refund-invoice",
-    antibody: "unawaited-db-commit",
+    exemplar: "unawaited-db-commit",
     file: "src/invoices.ts",
     expect: /refundInvoice/,
     prompt:
@@ -43,7 +95,7 @@ const TASKS = [
   },
   {
     id: "owner-middleware",
-    antibody: "missing-return-after-error-response",
+    exemplar: "missing-return-after-error-response",
     file: "src/middleware/owner.ts",
     expect: /requireOwner/,
     prompt:
@@ -51,7 +103,7 @@ const TASKS = [
   },
   {
     id: "favorites",
-    antibody: "mutable-default-argument",
+    exemplar: "mutable-default-argument",
     file: "app/wishlist.py",
     expect: /def add_to_favorites/,
     prompt:
@@ -59,7 +111,7 @@ const TASKS = [
   },
   {
     id: "refund-charge",
-    antibody: "requests-call-without-timeout",
+    exemplar: "requests-call-without-timeout",
     file: "app/payments.py",
     expect: /def refund/,
     prompt:
@@ -67,7 +119,7 @@ const TASKS = [
   },
   {
     id: "payment-list",
-    antibody: "use-effect-missing-dependency-array",
+    exemplar: "use-effect-missing-dependency-array",
     file: "src/components/PaymentList.tsx",
     expect: /PaymentList/,
     prompt:
@@ -75,13 +127,14 @@ const TASKS = [
   },
   {
     id: "top-refunds",
-    antibody: "numeric-sort-without-comparator",
+    exemplar: "numeric-sort-without-comparator",
     file: "src/leaderboard.ts",
     expect: /topRefundAmounts/,
     prompt:
       "In src/leaderboard.ts, add an exported function topRefundAmounts(amounts: number[], n = 5): number[] that returns the n largest amounts, largest first, in the same style as rankScores.",
   },
-].filter((t) => !ONLY || ONLY.has(t.id));
+];
+}
 
 const sh = (cmd, argv, cwd, env = process.env) => execFileSync(cmd, argv, { cwd, env, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 }).toString();
 const git = (cwd, ...argv) => sh("git", argv, cwd);
@@ -101,19 +154,19 @@ function findClaude() {
   throw new Error("claude not found on PATH");
 }
 
-// 1. A template repository: the demo shop with its antibodies learned from the recorded model
-//    answers (no model calls), committed so every run starts from the same state.
+// 1. A template repository with its antibodies learned from the recorded model answers (no model
+//    calls), committed so every run starts from the same state.
 const work = mkdtempSync(join(tmpdir(), "bugvax-eval-"));
 const template = join(work, "template");
 console.log(`eval workspace: ${work}`);
-bugvax(work, ["demo", "template"]);
-bugvax(template, ["learn"], { ...process.env, BUGVAX_LLM_CACHE: join(repoRoot, "scripts", ".demo-cache"), NO_COLOR: "1" });
+suite.create(work);
+bugvax(template, ["learn", "--provider", "claude-code"], { ...process.env, BUGVAX_LLM_CACHE: suite.cache, NO_COLOR: "1" });
 const antibodyDir = join(template, ".bugvax", "antibodies");
 const antibodies = readdirSync(antibodyDir).map((f) => f.replace(/\.ya?ml$/, ""));
 console.log(`antibodies: ${antibodies.join(", ")}`);
-for (const t of TASKS) {
-  if (!antibodies.includes(t.antibody)) console.log(`warning: task ${t.id} targets ${t.antibody}, which this run did not learn`);
-}
+// Both conditions ignore node_modules, where the bugvax condition gets its local `bugvax` command.
+const gitignore = join(template, ".gitignore");
+writeFileSync(gitignore, (existsSync(gitignore) ? readFileSync(gitignore, "utf8") : "") + "node_modules/\n");
 git(template, "add", "-A");
 git(template, "commit", "-q", "-m", "bugvax antibodies");
 const groundTruth = join(work, "ground-truth");
@@ -146,6 +199,11 @@ function setup(dir, condition) {
       ),
     );
     writeFileSync(join(dir, "mcp.json"), JSON.stringify({ mcpServers: { bugvax: { command: process.execPath, args: [cli, "mcp"] } } }, null, 2));
+    // `npx bugvax ...` (used by the skill) resolves to this build, as it would to an installed package.
+    const bin = join(dir, "node_modules", ".bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "bugvax.cmd"), `@"${process.execPath}" "${cli}" %*\r\n`);
+    writeFileSync(join(bin, "bugvax"), `#!/bin/sh\nexec "${process.execPath}" "${cli}" "$@"\n`, { mode: 0o755 });
   }
   git(dir, "add", "-A");
   git(dir, "commit", "-q", "--allow-empty", "-m", `eval setup: ${condition}`);
@@ -235,14 +293,15 @@ async function one(task, condition, trial) {
   setup(dir, condition);
   const run = await runClaude(dir, task, condition);
   const s = score(dir, task);
+  git(dir, "add", "-A", "--intent-to-add"); // so new files show up in the recorded diff
   const result = {
+    suite: SUITE,
     task: task.id,
     condition,
     trial,
     model: MODEL,
     completed: s.done,
     reintroduced: s.findings.length,
-    targetReintroduced: s.findings.some((f) => f.rule === task.antibody),
     findings: s.findings,
     tamperedWithAntibodies: s.tampered,
     changed: s.changed,
@@ -292,19 +351,21 @@ for (const c of CONDITIONS) {
 }
 mkdirSync(OUT, { recursive: true });
 const stamp = args.stamp ?? "latest";
-writeFileSync(join(OUT, `results-${MODEL}-${stamp}.json`), JSON.stringify({ model: MODEL, trials: TRIALS, antibodies, summary, results }, null, 2));
+writeFileSync(join(OUT, `results-${SUITE}-${MODEL}-${stamp}.json`), JSON.stringify({ suite: SUITE, model: MODEL, trials: TRIALS, antibodies, summary, results }, null, 2));
 const lines = [
-  `# bugvax agent eval (${MODEL}, ${TRIALS} trial${TRIALS > 1 ? "s" : ""} per task)`,
+  `# bugvax agent eval: ${suite.title} (${MODEL}, ${TRIALS} trial${TRIALS > 1 ? "s" : ""} per task)`,
   "",
-  "| task | known bug in the exemplar | " + CONDITIONS.join(" | ") + " |",
+  `Antibodies: ${antibodies.join(", ")}`,
+  "",
+  "| task | known bugs in the code it imitates | " + CONDITIONS.join(" | ") + " |",
   "|---|---|" + CONDITIONS.map(() => "---").join("|") + "|",
   ...TASKS.map((t) => {
     const cells = CONDITIONS.map((c) => {
       const rs = valid.filter((r) => r.task === t.id && r.condition === c);
       if (!rs.length) return "n/a";
-      return rs.map((r) => (r.reintroduced ? `bug${r.completed ? "" : " (not done)"}` : r.completed ? "clean" : "not done")).join(", ");
+      return rs.map((r) => (r.reintroduced ? `${r.reintroduced} bug${r.reintroduced > 1 ? "s" : ""}${r.completed ? "" : " (not done)"}` : r.completed ? "clean" : "not done")).join(", ");
     });
-    return `| ${t.id} | ${t.antibody} | ${cells.join(" | ")} |`;
+    return `| ${t.id} | ${t.exemplar} | ${cells.join(" | ")} |`;
   }),
   "",
   ...CONDITIONS.map((c) => {
@@ -312,6 +373,6 @@ const lines = [
     return `- **${c}**: ${s.runsWithKnownBug}/${s.runs} runs re-introduced a known bug (${s.knownBugs} findings), ${s.completed}/${s.runs} completed the task, ${s.tampered} touched the antibodies, avg ${s.avgSeconds}s, $${s.costUsd}`;
   }),
 ];
-writeFileSync(join(OUT, `results-${MODEL}-${stamp}.md`), lines.join("\n") + "\n");
+writeFileSync(join(OUT, `results-${SUITE}-${MODEL}-${stamp}.md`), lines.join("\n") + "\n");
 console.log("\n" + lines.join("\n"));
 if (!args.keep) rmSync(work, { recursive: true, force: true });

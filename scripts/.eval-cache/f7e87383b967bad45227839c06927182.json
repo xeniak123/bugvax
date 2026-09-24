@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "deposit() mirrors the original buggy transfer(): it mutates account.balance and then calls bus.emit(\"deposit.completed\", ...), which delivers in-process immediately and is not persisted with the state change, so a crash between the mutation and delivery loses the event. There is no transaction, guard, or caller-side retry handling this differently, and it is production code rather than a deliberate test of the pattern. The same fix applies verbatim: import { outbox } from \"./events\" and use outbox.enqueue(\"deposit.completed\", { accountId, cents })."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"deposit() mirrors the original buggy transfer(): it mutates account.balance and then calls bus.emit(\\\"deposit.completed\\\", ...), which delivers in-process immediately and is not persisted with the state change, so a crash between the mutation and delivery loses the event. There is no transaction, guard, or caller-side retry handling this differently, and it is production code rather than a deliberate test of the pattern. The same fix applies verbatim: import { outbox } from \\\"./events\\\" and use outbox.enqueue(\\\"deposit.completed\\\", { accountId, cents }).\"}]}"
+}

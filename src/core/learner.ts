@@ -37,6 +37,8 @@ export interface LearnContext {
   mutex: Mutex;
   /** Optional progress callback, one line per step. */
   onStep?: (message: string) => void;
+  /** Stops learning between steps and cancels a running model call. */
+  signal?: AbortSignal;
 }
 
 const RULE_KEYS = new Set(["pattern", "kind", "regex", "inside", "has", "follows", "precedes", "all", "any", "not", "matches", "nthChild", "range"]);
@@ -115,10 +117,11 @@ export async function learnFromSample(sample: FixSample, ctx: LearnContext): Pro
   let lastProblem = "no valid rule produced";
 
   for (let attempt = 1; attempt <= ctx.config.maxAttempts; attempt++) {
+    if (ctx.signal?.aborted) return { status: "interrupted", reason: "cancelled" };
     step(`attempt ${attempt}: asking ${ctx.llm.name} for a rule`);
     let res;
     try {
-      res = await ctx.llm.completeJSON({ system: GENERATE_SYSTEM, messages, schema: GENERATE_SCHEMA as unknown as Record<string, unknown> });
+      res = await ctx.llm.completeJSON({ system: GENERATE_SYSTEM, messages, schema: GENERATE_SCHEMA as unknown as Record<string, unknown>, signal: ctx.signal });
     } catch (e) {
       // Refusals and truncated answers are about this fix; backend outages propagate to the caller.
       if (e instanceof LLMError && e.kind === "model") return { status: "failed", reason: e.message, attempts: attempt };
@@ -176,6 +179,7 @@ export async function learnFromSample(sample: FixSample, ctx: LearnContext): Pro
       if (proof.ok) meta.validation.fix = "proven";
       else delete rule.fix;
     }
+    if (ctx.signal?.aborted) return { status: "interrupted", reason: "cancelled" };
     return ctx.mutex.lock(async () => {
       // Another worker may have learned the same bug class in the meantime.
       const now = await ctx.store.antibodies();
@@ -200,7 +204,7 @@ async function repairFix(
   messages.push({ role: "user", content: fixFeedback(feedback) });
   let res;
   try {
-    res = await ctx.llm.completeJSON({ system: GENERATE_SYSTEM, messages, schema: GENERATE_SCHEMA as unknown as Record<string, unknown> });
+    res = await ctx.llm.completeJSON({ system: GENERATE_SYSTEM, messages, schema: GENERATE_SCHEMA as unknown as Record<string, unknown>, signal: ctx.signal });
   } catch (e) {
     if (e instanceof LLMError && e.kind === "model") return null;
     throw e;
@@ -230,6 +234,7 @@ async function reviewMatches(
       system: REVIEW_SYSTEM,
       messages: [{ role: "user", content: reviewPrompt(sample, { id: rule.id, message: rule.message ?? "", note: rule.note ?? "", ruleYaml }, locations) }],
       schema: REVIEW_SCHEMA as unknown as Record<string, unknown>,
+      signal: ctx.signal,
     });
     if (!isReviewResponse(res.json)) return null;
     const verdicts = new Map(res.json.verdicts.map((v) => [v.index, v]));

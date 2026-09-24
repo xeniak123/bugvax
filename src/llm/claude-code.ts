@@ -66,7 +66,7 @@ export class ClaudeCodeProvider implements LLMProvider {
       delete env.CLAUDECODE; // allow running from inside a Claude Code session
       let res;
       try {
-        res = await run(this.bin, args, { cwd: dir, input: flatten(req.messages), env, timeoutMs: 20 * 60_000 });
+        res = await run(this.bin, args, { cwd: dir, input: flatten(req.messages), env, timeoutMs: 20 * 60_000, signal: req.signal });
       } catch (e) {
         throw new LLMError(`claude -p did not finish: ${(e as Error).message}`, "transient");
       }
@@ -74,12 +74,19 @@ export class ClaudeCodeProvider implements LLMProvider {
       try {
         out = JSON.parse(res.stdout) as ClaudeCodeResult;
       } catch {
+        // No JSON at all: Claude Code did not run a model turn (crash, unsupported flag, broken install).
         const detail = (res.stderr || res.stdout).trim().slice(0, 500);
-        throw new LLMError(`claude -p failed (exit ${res.code}): ${detail}`, classifyError(detail));
+        const hint = /unknown option/i.test(detail) ? " (update Claude Code: bugvax needs version 2.1.169 or newer)" : "";
+        throw new LLMError(`claude -p failed (exit ${res.code}): ${detail}${hint}`, classifyError(detail) === "transient" ? "transient" : "fatal");
+      }
+      if (out.subtype === "error_max_structured_output_retries") {
+        throw new LLMError("Claude Code could not produce a valid structured answer.", "model");
       }
       if (out.is_error || out.subtype !== "success") {
+        // An error result (offline, API error, usage) is about the backend, not this fix.
         const detail = String(out.result ?? out.subtype).slice(0, 500);
-        throw new LLMError(`Claude Code: ${detail}`, classifyError(detail));
+        const kind = classifyError(detail);
+        throw new LLMError(`Claude Code: ${detail}`, kind === "model" ? "transient" : kind);
       }
       if (out.structured_output && typeof out.structured_output === "object") {
         return { json: out.structured_output, raw: JSON.stringify(out.structured_output), costUsd: out.total_cost_usd };

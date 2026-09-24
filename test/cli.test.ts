@@ -80,7 +80,9 @@ describe("cli", () => {
     // Clean edits produce no complaint.
     const cleanGemini = await cli(["check", "--hook", "gemini"], repo.dir, JSON.stringify({ cwd: repo.dir, tool_name: "write_file", tool_input: { file_path: refunds } }));
     expect(JSON.parse(cleanGemini.stdout)).toEqual({});
-    const cleanCursor = await cli(["check", "--hook", "cursor"], repo.dir, JSON.stringify({ workspace_roots: [repo.dir] }));
+    const conv = { conversation_id: `cli-${process.pid}-${Date.now()}`, workspace_roots: [repo.dir] };
+    await cli(["check", "--hook", "cursor-edit"], repo.dir, JSON.stringify({ ...conv, file_path: refunds }));
+    const cleanCursor = await cli(["check", "--hook", "cursor"], repo.dir, JSON.stringify(conv));
     expect(JSON.parse(cleanCursor.stdout)).toEqual({});
 
     await repo.write({ "src/refunds.ts": REFUNDS_FIXED.replace("await db.commit();", "db.commit();") });
@@ -98,7 +100,7 @@ describe("cli", () => {
     expect(c.decision).toBe("block");
     expect(c.reason).toContain("fixed before in abcdef1");
 
-    const cursor = await cli(["check", "--hook", "cursor"], repo.dir, JSON.stringify({ workspace_roots: [repo.dir], status: "completed" }));
+    const cursor = await cli(["check", "--hook", "cursor"], repo.dir, JSON.stringify({ ...conv, status: "completed" }));
     expect(JSON.parse(cursor.stdout).followup_message).toContain("your changes re-introduce 1 bug");
     // The untouched latent bug in invoices.ts is not blamed on the agent.
     expect(cursor.stdout).not.toContain("invoices");
@@ -126,7 +128,7 @@ describe("cli", () => {
     expect(res.code).toBe(0);
     const settings = JSON.parse(await readFile(join(repo.dir, ".claude", "settings.json"), "utf8"));
     expect(settings.permissions.allow).toEqual(["Bash(npm test)"]);
-    expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe("npx -y bugvax check --hook claude-code");
+    expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe("npx -y --loglevel=error bugvax check --hook claude-code");
     // Idempotent.
     await cli(["init", "--claude-code"], repo.dir);
     const again = JSON.parse(await readFile(join(repo.dir, ".claude", "settings.json"), "utf8"));
@@ -171,10 +173,11 @@ describe("cli", () => {
     await repo.commit({ "README.md": "x\n" }, "init");
     expect((await cli(["init", "--cursor", "--gemini", "--codex", "--mcp"], repo.dir)).code).toBe(0);
     const read = async (p: string) => JSON.parse(await readFile(join(repo.dir, p), "utf8"));
-    expect((await read(".cursor/hooks.json")).hooks.stop[0].command).toBe("npx -y bugvax check --hook cursor");
+    expect((await read(".cursor/hooks.json")).hooks.stop[0].command).toBe("npx -y --loglevel=error bugvax check --hook cursor");
+    expect((await read(".cursor/hooks.json")).hooks.afterFileEdit[0].command).toBe("npx -y --loglevel=error bugvax check --hook cursor-edit");
     expect((await read(".cursor/hooks.json")).version).toBe(1);
     expect((await read(".gemini/settings.json")).hooks.AfterTool[0].matcher).toBe("write_file|replace");
-    expect((await read(".codex/hooks.json")).hooks.PostToolUse[0].hooks[0].command).toBe("npx -y bugvax check --hook codex");
+    expect((await read(".codex/hooks.json")).hooks.PostToolUse[0].hooks[0].command).toBe("npx -y --loglevel=error bugvax check --hook codex");
     expect(JSON.stringify((await read(".mcp.json")).mcpServers.bugvax)).toContain("bugvax");
     expect((await read(".cursor/mcp.json")).mcpServers.bugvax).toBeDefined();
     await cli(["init", "--cursor", "--gemini", "--codex", "--mcp"], repo.dir);

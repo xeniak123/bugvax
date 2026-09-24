@@ -29,18 +29,25 @@ export class AnthropicProvider implements LLMProvider {
           format: { type: "json_schema", schema: req.schema },
         },
         ...(useFallbacks ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
-      } as Anthropic.Beta.MessageCreateParamsNonStreaming);
+      } as Anthropic.Beta.MessageCreateParamsNonStreaming, { signal: req.signal });
     } catch (error) {
+      if (req.signal?.aborted) throw new LLMError("cancelled", "transient");
       if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
         throw new LLMError("Anthropic API authentication failed. Set ANTHROPIC_API_KEY, or use --provider claude-code.", "fatal");
       }
       // The SDK already retried; hammering on would only burn more of the rate limit.
       if (error instanceof Anthropic.RateLimitError) throw new LLMError("Anthropic API rate limit hit. Try again later or lower --concurrency.", "fatal");
-      if (error instanceof Anthropic.BadRequestError) throw new LLMError(`Anthropic API rejected the request: ${error.message}`, classifyError(error.message));
+      if (error instanceof Anthropic.NotFoundError) throw new LLMError(`Model ${this.model} not found: ${error.message}`, "fatal");
+      if (error instanceof Anthropic.BadRequestError) {
+        // A prompt that is too large is about this fix; anything else (model, effort, options) is setup.
+        const perFix = /too long|too large|too many tokens/i.test(error.message);
+        throw new LLMError(`Anthropic API rejected the request: ${error.message}`, perFix ? "model" : "fatal");
+      }
       if (error instanceof Anthropic.InternalServerError) throw new LLMError(`Anthropic API error ${error.status}: ${error.message}`, "transient");
       if (error instanceof Anthropic.APIConnectionError) throw new LLMError(`Could not reach the Anthropic API: ${error.message}`, "transient");
       if (error instanceof Anthropic.APIError) throw new LLMError(`Anthropic API error ${error.status}: ${error.message}`, classifyError(error.message));
-      throw error;
+      // e.g. "Could not resolve authentication method": no key configured.
+      throw new LLMError(`Anthropic client error: ${(error as Error).message}`, "fatal");
     }
     if (response.stop_reason === "refusal") throw new LLMError("The model declined to analyze this change.", "model");
     if (response.stop_reason === "max_tokens") throw new LLMError("The model ran out of output tokens.", "model");

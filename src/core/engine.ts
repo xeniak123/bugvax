@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import YAML from "yaml";
 import { run } from "../util/proc.js";
+import { isExcluded } from "./globs.js";
 import { TSX_GLOBS } from "./languages.js";
 
 /** An ast-grep rule, as stored in `.bugvax/antibodies/*.yml`. */
@@ -98,7 +99,7 @@ export function astGrepBinary(): string {
 }
 
 export function sgConfig(ruleDir = "rules"): string {
-  return YAML.stringify({ ruleDirs: [ruleDir], languageGlobs: { tsx: TSX_GLOBS } });
+  return YAML.stringify({ ruleDirs: [ruleDir], languageGlobs: { tsx: TSX_GLOBS, cpp: ["*.hxx"] } });
 }
 
 export function ruleToYaml(rule: RuleDoc): string {
@@ -148,6 +149,8 @@ export interface ScanOptions {
  * throwaway ast-grep project so that one call can scan many rules at once.
  */
 export async function scan(rules: RuleDoc[], targets: string[], cwd: string, opts: ScanOptions = {}): Promise<Match[]> {
+  const excludes = (opts.globs ?? []).filter((g) => g.startsWith("!"));
+  targets = targets.filter((t) => !isExcluded(t, excludes));
   if (!rules.length || !targets.length) return [];
   const dir = await mkdtemp(join(tmpdir(), "bugvax-rules-"));
   try {
@@ -160,7 +163,8 @@ export async function scan(rules: RuleDoc[], targets: string[], cwd: string, opt
       const batch = targets.slice(i, i + 150);
       const args = ["scan", "-c", join(dir, "sgconfig.yml"), "--json=stream", "--include-metadata"];
       for (const g of opts.globs ?? []) args.push("--globs", g);
-      args.push(...batch);
+      // "--" ends the options, so a path can never be read as an ast-grep flag.
+      args.push("--", ...batch);
       const res = await run(astGrepBinary(), args, { cwd });
       const parsed: Match[] = [];
       for (const line of res.stdout.split("\n")) {
@@ -169,7 +173,7 @@ export async function scan(rules: RuleDoc[], targets: string[], cwd: string, opt
         parsed.push(toMatch(JSON.parse(t) as RawMatch));
       }
       if (res.code !== 0 && !/found in code/i.test(res.stderr) && parsed.length === 0) {
-        throw new EngineError(cleanError(res.stderr || res.stdout));
+        throw new EngineError(cleanError(res.stderr || res.stdout, rules));
       }
       matches.push(...parsed);
     }
@@ -189,12 +193,14 @@ function dedupe(matches: Match[]): Match[] {
   });
 }
 
-function cleanError(s: string): string {
+/** ast-grep's error, with the temporary rule files replaced by the antibody they came from. */
+function cleanError(s: string, rules: RuleDoc[] = []): string {
+  const name = (i: string) => (rules.length > 1 && rules[Number(i)] ? `antibody "${rules[Number(i)].id}"` : "<rule>");
   const text = s
     .replace(/\x1b\[[0-9;]*m/g, "")
-    .replace(/[A-Za-z]:\\[^\s]*bugvax-rules-[^\s\\/]*[\\/]rules[\\/]r\d+\.yml/g, "<rule>")
-    .replace(/\/[^\s]*bugvax-rules-[^\s/]*\/rules\/r\d+\.yml/g, "<rule>")
-    .replace(/rules[\\/]r\d+\.yml/g, "<rule>")
+    .replace(/[A-Za-z]:\\[^\s]*bugvax-rules-[^\s\\/]*[\\/]rules[\\/]r(\d+)\.yml/g, (_, i: string) => name(i))
+    .replace(/\/[^\s]*bugvax-rules-[^\s/]*\/rules\/r(\d+)\.yml/g, (_, i: string) => name(i))
+    .replace(/rules[\\/]r(\d+)\.yml/g, (_, i: string) => name(i))
     .trim();
   return text.length > 1500 ? text.slice(0, 1500) + "…" : text;
 }
@@ -203,8 +209,10 @@ function cleanError(s: string): string {
  * Apply the fixes of the given matches (all in one file) to its content. Matches that overlap an
  * earlier one are left out; run again to pick them up. Returns the new content and what was applied.
  */
-export function applyFixes(content: Buffer, matches: Match[]): { content: Buffer; applied: Match[] } {
-  const fixable = matches.filter((m) => m.fix).sort((a, b) => a.fix!.start - b.fix!.start);
+export function applyFixes(content: Buffer, matches: Match[]): { content: Buffer; applied: Match[]; rewritten: { ruleId: string; start: number; end: number }[] } {
+  const fixable = matches
+    .filter((m) => m.fix && content.subarray(m.fix.start, m.fix.end).toString("utf8") !== m.fix.text) // a no-op is not a fix
+    .sort((a, b) => a.fix!.start - b.fix!.start);
   const applied: Match[] = [];
   let lastEnd = -1;
   for (const m of fixable) {
@@ -216,17 +224,31 @@ export function applyFixes(content: Buffer, matches: Match[]): { content: Buffer
   for (const m of [...applied].reverse()) {
     out = Buffer.concat([out.subarray(0, m.fix!.start), Buffer.from(m.fix!.text, "utf8"), out.subarray(m.fix!.end)]);
   }
-  return { content: out, applied };
+  // Where each replacement ended up in the new content.
+  const rewritten: { ruleId: string; start: number; end: number }[] = [];
+  let shift = 0;
+  for (const m of applied) {
+    const len = Buffer.byteLength(m.fix!.text, "utf8");
+    rewritten.push({ ruleId: m.ruleId, start: m.fix!.start + shift, end: m.fix!.start + shift + len });
+    shift += len - (m.fix!.end - m.fix!.start);
+  }
+  return { content: out, applied, rewritten };
 }
 
 /** Check that a rule compiles, without scanning anything meaningful. Returns an error message or null. */
 export async function checkRule(rule: RuleDoc): Promise<string | null> {
+  return checkRules([rule]);
+}
+
+/** Compile rules without scanning anything; the error names the antibody that is broken. */
+export async function checkRules(rules: RuleDoc[]): Promise<string | null> {
+  if (!rules.length) return null;
   const dir = await mkdtemp(join(tmpdir(), "bugvax-check-"));
   try {
     const probe = join(dir, "probe");
     await mkdir(probe);
     await writeFile(join(probe, "empty.txt"), "");
-    await scan([rule], ["probe"], dir);
+    await scan(rules, ["probe"], dir);
     return null;
   } catch (e) {
     if (e instanceof EngineError) return e.message;

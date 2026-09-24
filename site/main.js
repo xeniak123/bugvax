@@ -34,6 +34,12 @@ function toast(message) {
   toastTimer = setTimeout(() => toastEl.classList.remove("is-on"), 2600);
 }
 
+// Screen readers hear about a successful copy; sighted users see the check mark.
+const srStatus = document.createElement("div");
+srStatus.className = "visually-hidden";
+srStatus.setAttribute("role", "status");
+document.body.append(srStatus);
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-copy]");
   if (!btn) return;
@@ -41,6 +47,8 @@ document.addEventListener("click", (e) => {
   const done = () => {
     btn.classList.add("copied");
     setTimeout(() => btn.classList.remove("copied"), 1600);
+    srStatus.textContent = "";
+    setTimeout(() => (srStatus.textContent = "Copied to the clipboard"), 40);
   };
   let promise;
   try {
@@ -76,6 +84,12 @@ for (const a of document.querySelectorAll('a[href^="#"]')) {
     e.preventDefault();
     if (lenis) lenis.scrollTo(target, { offset: id === "#top" ? 0 : -8, duration: 1.2 });
     else target.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+    // Keyboard and screen-reader users continue from the section they jumped to; the URL can be shared.
+    if (id.length > 1) {
+      if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+      target.focus({ preventScroll: true });
+      history.pushState(null, "", id);
+    }
   });
 }
 
@@ -244,6 +258,7 @@ function initPlayer() {
   function progress() {
     fill.style.transform = `scaleX(${Math.min(1, t / duration)})`;
     scrub.setAttribute("aria-valuenow", String(Math.round((t / duration) * 100)));
+    scrub.setAttribute("aria-valuetext", `${fmt(t)} of ${fmt(duration)}`);
     timeEl.textContent = `${fmt(t)} / ${fmt(duration)}`;
   }
   function advance() {
@@ -297,6 +312,7 @@ function initPlayer() {
   speedBtn.addEventListener("click", () => {
     speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
     speedBtn.textContent = `${speed}×`;
+    speedBtn.setAttribute("aria-label", `Playback speed ${speed}×`);
   });
   const seekFromPointer = (e) => {
     const r = scrub.getBoundingClientRect();
@@ -312,6 +328,8 @@ function initPlayer() {
   scrub.addEventListener("keydown", (e) => {
     if (e.key === "ArrowRight") seek(t + 2);
     else if (e.key === "ArrowLeft") seek(t - 2);
+    else if (e.key === "Home") seek(0);
+    else if (e.key === "End") seek(duration);
     else return;
     e.preventDefault();
   });
@@ -351,12 +369,11 @@ const TOOLS = [
   {
     name: "Claude Code",
     icon: "claude",
-    note: "Every edit Claude makes is checked. A re-introduced bug goes straight back to the agent, with the proven fix and the commit where it was fixed before.",
+    note: "The plugin briefs Claude on the bugs this repository already fixed and where copies still hide, checks every edit, and checks the whole change before Claude may say it is done. Findings go straight back to the agent, with the proven fix and the commit where the bug was fixed before.",
     blocks: [
-      { label: "Guard every edit", code: "npx bugvax init --claude-code" },
-      { label: "Add the MCP server", code: "claude mcp add bugvax -- npx -y bugvax mcp" },
+      { label: "Install the plugin (type these in Claude Code)", code: "/plugin marketplace add xeniak123/bugvax\n/plugin install bugvax@bugvax" },
+      { label: "Or set it up per project, shared with your team", code: "npx bugvax init --claude-code --mcp" },
     ],
-    foot: "On native Windows, run the MCP command as: claude mcp add bugvax -- cmd /c npx -y bugvax mcp",
   },
   {
     name: "Codex",
@@ -371,7 +388,7 @@ const TOOLS = [
   {
     name: "Cursor",
     icon: "cursor",
-    note: "Before the agent finishes, bugvax checks its changes. If it re-introduced a known bug, it gets one more turn to fix it.",
+    note: "bugvax remembers which files the agent edits. Before it finishes, those files are checked; if it re-introduced a known bug, it gets one more turn to fix it.",
     blocks: [
       { label: "Guard the agent", code: "npx bugvax init --cursor" },
       { label: "Add the MCP server", code: "npx bugvax init --mcp", link: { label: "Add to Cursor", href: cursorLink } },
@@ -398,6 +415,7 @@ const TOOLS = [
         link: { label: "Install in VS Code", href: vscodeLink },
       },
     ],
+    foot: `In cmd or Windows PowerShell: code --add-mcp "${JSON.stringify({ name: "bugvax", ...MCP }).replace(/"/g, '\\"')}"`,
   },
   {
     name: "Claude Desktop",
@@ -460,7 +478,7 @@ function initRack() {
           <span class="label">${escapeHtml(b.label)}</span>
           <span class="tools">
             ${b.link ? `<a class="mini-btn is-gold" href="${b.link.href}">${escapeHtml(b.link.label)}<svg data-icon="arrow-up-right"></svg></a>` : ""}
-            <button class="mini-btn" type="button" data-copy="${escapeHtml(b.code)}" aria-label="Copy">${copyIcons}Copy</button>
+            <button class="mini-btn" type="button" data-copy="${escapeHtml(b.code)}" aria-label="Copy: ${escapeHtml(b.label)}">${copyIcons}Copy</button>
           </span>
         </header>
         <pre><code>${escapeHtml(b.code)}</code></pre>
@@ -478,7 +496,15 @@ function initRack() {
 
   let current = -1;
   let swapTimer;
-  function select(i, { focus = false, animate = true } = {}) {
+  // Bring a vial into view inside the rack only: never scroll the page itself.
+  function reveal(i) {
+    if (rack.scrollWidth <= rack.clientWidth) return;
+    const r = rack.getBoundingClientRect();
+    const v = vials[i].getBoundingClientRect();
+    rack.scrollBy({ left: v.left + v.width / 2 - (r.left + r.width / 2), behavior: reduced ? "auto" : "smooth" });
+  }
+
+  function select(i, { focus = false, animate = true, scroll = true } = {}) {
     if (i === current) return;
     current = i;
     vials.forEach((v, k) => {
@@ -502,7 +528,7 @@ function initRack() {
     } else {
       render();
     }
-    if (vials[i].scrollIntoView && coarse) vials[i].scrollIntoView({ behavior: reduced ? "auto" : "smooth", inline: "center", block: "nearest" });
+    if (scroll) reveal(i);
   }
 
   vials.forEach((v, i) => v.addEventListener("click", () => select(i)));
@@ -514,7 +540,7 @@ function initRack() {
     else return;
     e.preventDefault();
   });
-  select(0, { animate: false });
+  select(0, { animate: false, scroll: false });
 }
 initRack();
 

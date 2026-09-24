@@ -26,8 +26,11 @@ export interface CommitInfo {
   files: FileStat[];
 }
 
+// Print non-ASCII file names as they are instead of as quoted octal escapes.
+const GIT_OPTS = ["-c", "core.quotePath=false"];
+
 export async function git(cwd: string, args: string[], input?: string): Promise<string> {
-  const res = await run("git", args, { cwd, input });
+  const res = await run("git", [...GIT_OPTS, ...args], { cwd, input });
   if (res.code !== 0) {
     throw new Error(`git ${args.join(" ")} failed: ${res.stderr.trim() || res.stdout.trim()}`);
   }
@@ -36,8 +39,35 @@ export async function git(cwd: string, args: string[], input?: string): Promise<
 
 /** Like `git`, but returns null instead of throwing. */
 export async function gitMaybe(cwd: string, args: string[]): Promise<string | null> {
-  const res = await run("git", args, { cwd });
+  const res = await run("git", [...GIT_OPTS, ...args], { cwd });
   return res.code === 0 ? res.stdout : null;
+}
+
+/**
+ * Git still C-quotes paths that contain quotes, backslashes or control characters
+ * (`"a\\"b.ts"`, octal escapes for raw bytes). Turn such a path back into the real one.
+ */
+export function unquotePath(p: string): string {
+  if (p.length < 2 || !p.startsWith('"') || !p.endsWith('"')) return p;
+  const bytes: number[] = [];
+  const body = p.slice(1, -1);
+  const simple: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, "\\": 92 };
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c !== "\\") {
+      bytes.push(...Buffer.from(c, "utf8"));
+      continue;
+    }
+    const next = body[i + 1] ?? "";
+    if (/[0-7]/.test(next)) {
+      bytes.push(parseInt(body.slice(i + 1, i + 4), 8));
+      i += 3;
+    } else {
+      bytes.push(simple[next] ?? next.charCodeAt(0));
+      i += 1;
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
 }
 
 /**
@@ -109,7 +139,7 @@ export function parseLogHeads(out: string): CommitHead[] {
     const parts = chunk.split(US);
     if (parts.length < 6) continue;
     const [sha, short, date, subject, body, rest] = parts;
-    const paths = rest.split("\n").map((l) => l.trim()).filter(Boolean);
+    const paths = rest.split("\n").map((l) => unquotePath(l.trim())).filter(Boolean);
     heads.push({ sha: sha.trim(), short: short.trim(), date: date.trim(), subject: subject.trim(), body: body.trim(), paths });
   }
   return heads;
@@ -127,7 +157,7 @@ function parseNumstat(out: string): FileStat[] {
   for (const line of out.split("\n")) {
     const m = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line.trim());
     if (!m || m[1] === "-") continue; // binary
-    files.push({ path: m[3], added: Number(m[1]), deleted: Number(m[2]) });
+    files.push({ path: unquotePath(m[3]), added: Number(m[1]), deleted: Number(m[2]) });
   }
   return files;
 }
@@ -173,7 +203,7 @@ export function parseHunks(diff: string): Map<string, Hunk[]> {
   let current: Hunk[] | null = null;
   for (const line of diff.split("\n")) {
     if (line.startsWith("+++ ")) {
-      const p = line.slice(4).trim();
+      const p = unquotePath(line.slice(4).trim());
       if (p === "/dev/null") {
         current = null;
         continue;
@@ -198,24 +228,24 @@ export function parseHunks(diff: string): Map<string, Hunk[]> {
 
 /** Zero-context hunks for a diff. `range` is passed straight to `git diff` (e.g. ["a", "b"], ["--cached"], ["HEAD"]). */
 export async function diffHunks(cwd: string, range: string[], paths?: string[]): Promise<Map<string, Hunk[]>> {
-  const args = ["diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", ...range];
+  const args = ["diff", "-U0", "--no-color", "--no-renames", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", ...range];
   if (paths && paths.length) args.push("--", ...paths);
   return parseHunks(await git(cwd, args));
 }
 
 export async function diffText(cwd: string, range: string[], paths: string[], context = 3): Promise<string> {
   if (!paths.length) return "";
-  return git(cwd, ["diff", `-U${context}`, "--no-color", "--no-renames", "--no-ext-diff", ...range, "--", ...paths]);
+  return git(cwd, ["diff", `-U${context}`, "--no-color", "--no-renames", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", ...range, "--", ...paths]);
 }
 
 export async function changedFiles(cwd: string, range: string[]): Promise<string[]> {
-  const out = await git(cwd, ["diff", "--name-only", "--no-renames", "--diff-filter=ACMR", ...range]);
-  return out.split("\n").map((s) => s.trim()).filter(Boolean);
+  const out = await git(cwd, ["diff", "--name-only", "-z", "--no-renames", "--diff-filter=ACMR", ...range]);
+  return out.split("\0").filter(Boolean);
 }
 
 export async function untrackedFiles(cwd: string): Promise<string[]> {
-  const out = await git(cwd, ["ls-files", "--others", "--exclude-standard"]);
-  return out.split("\n").map((s) => s.trim()).filter(Boolean);
+  const out = await git(cwd, ["ls-files", "-z", "--others", "--exclude-standard"]);
+  return out.split("\0").filter(Boolean);
 }
 
 export async function isTracked(cwd: string, path: string): Promise<boolean> {

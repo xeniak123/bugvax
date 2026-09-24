@@ -5,7 +5,7 @@ import { sampleFromCandidate, sampleFromWorkingTree, type FixSample } from "../c
 import { Store, type Config } from "../core/store.js";
 import { createProvider, LLMError, type Effort, type LLMProvider } from "../llm/index.js";
 import { codeLine, firstSentence, header, loc, pc, plural, Progress, termWidth } from "../ui.js";
-import type { Match } from "../core/engine.js";
+import { checkRules, type Match } from "../core/engine.js";
 import { mapLimit, Mutex } from "../util/proc.js";
 
 export interface LearnOptions {
@@ -37,6 +37,15 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
   const state = await store.state();
 
   header("learn", root);
+
+  // One broken antibody file would make every fix fail: stop before any model call.
+  try {
+    const broken = await checkRules((await store.antibodies()).map((a) => a.doc));
+    if (broken) throw new Error(broken);
+  } catch (e) {
+    console.error(pc.red(`\n  An antibody in .bugvax/antibodies is invalid. Fix or delete it, then run bugvax learn again:\n  ${(e as Error).message}`));
+    return 1;
+  }
 
   // 1. Pick the fixes to learn from.
   type Job = { key: string; label: string; sample: () => Promise<FixSample | null> };
@@ -94,6 +103,10 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
   }
   if (!jobs.length) {
     console.log(pc.dim("\n  Nothing new to learn from. Fix some bugs first 😉"));
+    return 0;
+  }
+  if (opts.dryRun) {
+    for (const j of jobs) console.log(`  ${j.label}`);
     return 0;
   }
 
@@ -155,7 +168,7 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
     }
     progress.delete(job.key);
     outcomes.push(outcome);
-    done++;
+    const n = ++done;
     await mutex.lock(async () => {
       if (sample?.kind === "commit" && sample.sha && outcome.status !== "interrupted") {
         const s = await store.state();
@@ -169,7 +182,7 @@ export async function learnCommand(opts: LearnOptions): Promise<number> {
         await store.saveState(s);
       }
     });
-    const lines = [`  ${pc.dim(`[${String(done).padStart(width)}/${jobs.length}]`)} ${job.label}`];
+    const lines = [`  ${pc.dim(`[${String(n).padStart(width)}/${jobs.length}]`)} ${job.label}`];
     const pad = " ".repeat(width * 2 + 5);
     const room = Math.max(40, termWidth() - pad.length - 1);
     switch (outcome.status) {

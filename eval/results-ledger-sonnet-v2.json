@@ -1,0 +1,322 @@
+{
+  "suite": "ledger",
+  "model": "sonnet",
+  "trials": 2,
+  "antibodies": [
+    "bus-emit-instead-of-outbox-enqueue",
+    "db-query-missing-tenant-scope",
+    "manual-float-to-cents-conversion",
+    "new-date-on-db-timestamp",
+    "unchecked-get-account-result"
+  ],
+  "summary": {
+    "baseline": {
+      "runs": 6,
+      "completed": 6,
+      "runsWithKnownBug": 5,
+      "knownBugs": 11,
+      "tampered": 0,
+      "avgSeconds": 25,
+      "costUsd": 0.85
+    },
+    "bugvax": {
+      "runs": 6,
+      "completed": 6,
+      "runsWithKnownBug": 0,
+      "knownBugs": 0,
+      "tampered": 0,
+      "avgSeconds": 35,
+      "costUsd": 0.92
+    }
+  },
+  "results": [
+    {
+      "suite": "ledger",
+      "task": "withdraw",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 3,
+      "findings": [
+        {
+          "rule": "bus-emit-instead-of-outbox-enqueue",
+          "at": "src/withdrawals.ts:11",
+          "code": "bus.emit(\"withdrawal.completed\", { accountId, cents });"
+        },
+        {
+          "rule": "unchecked-get-account-result",
+          "at": "src/withdrawals.ts:5",
+          "code": "const account = getAccount(accountId);"
+        },
+        {
+          "rule": "manual-float-to-cents-conversion",
+          "at": "src/withdrawals.ts:6",
+          "code": "const cents = Math.round(amount * 100);"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/withdrawals.ts"
+      ],
+      "seconds": 21,
+      "turns": 5,
+      "costUsd": 0.20669719999999997,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "export-csv",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/exports.ts"
+      ],
+      "seconds": 43,
+      "turns": 7,
+      "costUsd": 0.2652288,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "export-csv",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/exports.ts"
+      ],
+      "seconds": 23,
+      "turns": 9,
+      "costUsd": 0.1215416,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "withdraw",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/withdrawals.ts"
+      ],
+      "seconds": 48,
+      "turns": 10,
+      "costUsd": 0.24028599999999997,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "charge-fee",
+      "condition": "baseline",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 2,
+      "findings": [
+        {
+          "rule": "unchecked-get-account-result",
+          "at": "src/fees.ts:11",
+          "code": "const account = getAccount(accountId);"
+        },
+        {
+          "rule": "bus-emit-instead-of-outbox-enqueue",
+          "at": "src/fees.ts:14",
+          "code": "bus.emit(\"fee.charged\", { accountId, fee });"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/fees.ts"
+      ],
+      "seconds": 24,
+      "turns": 7,
+      "costUsd": 0.0944408,
+      "error": null,
+      "diff": "diff --git a/src/fees.ts b/src/fees.ts\nindex b23199b..a7a629e 100644\n--- a/src/fees.ts\n+++ b/src/fees.ts\n@@ -1,5 +1,16 @@\n+import { getAccount } from \"./accounts\";\n+import { bus } from \"./events\";\n+\n export const FEE_RATE = 0.015;\n \n export function calculateFee(amount: number): number {\n   return Math.round(amount * FEE_RATE * 100);\n }\n+\n+export function chargeFee(accountId: string, amount: number): number {\n+  const account = getAccount(accountId);\n+  const fee = calculateFee(amount);\n+  account.balance -= fee;\n+  bus.emit(\"fee.charged\", { accountId, fee });\n+  return fee;\n+}\n"
+    },
+    {
+      "suite": "ledger",
+      "task": "withdraw",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 3,
+      "findings": [
+        {
+          "rule": "bus-emit-instead-of-outbox-enqueue",
+          "at": "src/withdrawals.ts:11",
+          "code": "bus.emit(\"withdrawal.completed\", { accountId, cents });"
+        },
+        {
+          "rule": "unchecked-get-account-result",
+          "at": "src/withdrawals.ts:5",
+          "code": "const account = getAccount(accountId);"
+        },
+        {
+          "rule": "manual-float-to-cents-conversion",
+          "at": "src/withdrawals.ts:6",
+          "code": "const cents = Math.round(amount * 100);"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/withdrawals.ts"
+      ],
+      "seconds": 21,
+      "turns": 5,
+      "costUsd": 0.0910292,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "export-csv",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 1,
+      "findings": [
+        {
+          "rule": "new-date-on-db-timestamp",
+          "at": "src/exports.ts:6",
+          "code": ".map((row) => `${row.id},${row.cents},${new Date(row.date).toISOString()}`)"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/exports.ts"
+      ],
+      "seconds": 21,
+      "turns": 5,
+      "costUsd": 0.098403,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "charge-fee",
+      "condition": "bugvax",
+      "trial": 1,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/fees.ts"
+      ],
+      "seconds": 51,
+      "turns": 13,
+      "costUsd": 0.1721544,
+      "error": null,
+      "diff": "diff --git a/src/fees.ts b/src/fees.ts\nindex b23199b..d7665a2 100644\n--- a/src/fees.ts\n+++ b/src/fees.ts\n@@ -1,5 +1,17 @@\n+import { getAccount } from \"./accounts\";\n+import { outbox } from \"./events\";\n+\n export const FEE_RATE = 0.015;\n \n export function calculateFee(amount: number): number {\n   return Math.round(amount * FEE_RATE * 100);\n }\n+\n+export function chargeFee(accountId: string, amount: number): number {\n+  const account = getAccount(accountId);\n+  if (!account) throw new Error(\"account not found or closed\");\n+  const fee = calculateFee(amount);\n+  account.balance -= fee;\n+  outbox.enqueue(\"fee.charged\", { accountId, fee });\n+  return fee;\n+}\n"
+    },
+    {
+      "suite": "ledger",
+      "task": "withdraw",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/withdrawals.ts"
+      ],
+      "seconds": 32,
+      "turns": 8,
+      "costUsd": 0.12797640000000002,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "export-csv",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/exports.ts"
+      ],
+      "seconds": 23,
+      "turns": 8,
+      "costUsd": 0.1301742,
+      "error": null,
+      "diff": ""
+    },
+    {
+      "suite": "ledger",
+      "task": "charge-fee",
+      "condition": "baseline",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 2,
+      "findings": [
+        {
+          "rule": "unchecked-get-account-result",
+          "at": "src/fees.ts:11",
+          "code": "const account = getAccount(accountId);"
+        },
+        {
+          "rule": "bus-emit-instead-of-outbox-enqueue",
+          "at": "src/fees.ts:14",
+          "code": "bus.emit(\"fee.charged\", { accountId, fee });"
+        }
+      ],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/fees.ts"
+      ],
+      "seconds": 22,
+      "turns": 6,
+      "costUsd": 0.0955176,
+      "error": null,
+      "diff": "diff --git a/src/fees.ts b/src/fees.ts\nindex b23199b..a7a629e 100644\n--- a/src/fees.ts\n+++ b/src/fees.ts\n@@ -1,5 +1,16 @@\n+import { getAccount } from \"./accounts\";\n+import { bus } from \"./events\";\n+\n export const FEE_RATE = 0.015;\n \n export function calculateFee(amount: number): number {\n   return Math.round(amount * FEE_RATE * 100);\n }\n+\n+export function chargeFee(accountId: string, amount: number): number {\n+  const account = getAccount(accountId);\n+  const fee = calculateFee(amount);\n+  account.balance -= fee;\n+  bus.emit(\"fee.charged\", { accountId, fee });\n+  return fee;\n+}\n"
+    },
+    {
+      "suite": "ledger",
+      "task": "charge-fee",
+      "condition": "bugvax",
+      "trial": 2,
+      "model": "sonnet",
+      "completed": true,
+      "reintroduced": 0,
+      "findings": [],
+      "tamperedWithAntibodies": false,
+      "changed": [
+        "src/fees.ts"
+      ],
+      "seconds": 30,
+      "turns": 10,
+      "costUsd": 0.12636660000000002,
+      "error": null,
+      "diff": "diff --git a/src/fees.ts b/src/fees.ts\nindex b23199b..80dc145 100644\n--- a/src/fees.ts\n+++ b/src/fees.ts\n@@ -1,5 +1,19 @@\n+import { getAccount } from \"./accounts\";\n+import { outbox } from \"./events\";\n+\n export const FEE_RATE = 0.015;\n \n export function calculateFee(amount: number): number {\n   return Math.round(amount * FEE_RATE * 100);\n }\n+\n+export function chargeFee(accountId: string, amount: number): number {\n+  const account = getAccount(accountId);\n+  if (!account) {\n+    throw new Error(`Account not found: ${accountId}`);\n+  }\n+  const fee = calculateFee(amount);\n+  account.balance -= fee;\n+  outbox.enqueue(\"fee.charged\", { accountId, fee });\n+  return fee;\n+}\n"
+    }
+  ]
+}

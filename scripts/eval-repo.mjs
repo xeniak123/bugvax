@@ -104,9 +104,9 @@ export const outbox = {
 };
 `,
   "src/dates.ts": `
-/** Parses a stored ISO date (always UTC) without local time-zone shifts. */
+/** Stored timestamps ("2026-03-02 09:30:00") are UTC but carry no zone marker. Parses them as UTC. */
 export function parseDate(value: string): Date {
-  return new Date(value.endsWith("Z") ? value : value + "Z");
+  return new Date(value.replace(" ", "T") + "Z");
 }
 `,
   "src/transfers.ts": transfersBuggy,
@@ -179,7 +179,7 @@ commit("fix: fee rate is 1.5%, not 1.2%", {
   "src/fees.ts": "\nexport const FEE_RATE = 0.015;\n\nexport function calculateFee(amount: number): number {\n  return Math.round(amount * FEE_RATE * 100);\n}\n",
 });
 
-commit("fix: statement dates were a day early for users west of UTC", {
+commit("fix: statement dates were shifted for users outside UTC\n\nThe database stores UTC timestamps without a zone marker, and new Date() reads those as local time. parseDate() reads them as UTC.", {
   "src/statements.ts": statementsBuggy
     .replace("}'\`);", "}'\`, { tenantId });")
     .replace('import { db } from "./db";', 'import { db } from "./db";\nimport { parseDate } from "./dates";')

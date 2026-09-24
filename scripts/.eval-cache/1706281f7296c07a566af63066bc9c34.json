@@ -1,0 +1,12 @@
+{
+  "json": {
+    "verdicts": [
+      {
+        "index": 1,
+        "real_bug": true,
+        "reason": "Exact clone of the fixed pattern: `deposit(accountId, amount: number)` converts a plain decimal currency amount via `Math.round(amount * 100)` and writes it into `account.balance` and the `deposit.completed` event. `amount` is a plain identifier holding a user-supplied currency value, not a computed rate/fee product, so the rule's 'intentional business rounding' exception does not apply. Values such as 0.29 (0.29 * 100 === 28.999999999999996) round down and under-credit by one cent, corrupting both the stored balance and downstream event consumers. The same fix applies verbatim: import toCents from ./money and use `const cents = toCents(amount);`. No earlier guard or normalization handles this."
+      }
+    ]
+  },
+  "raw": "{\"verdicts\":[{\"index\":1,\"real_bug\":true,\"reason\":\"Exact clone of the fixed pattern: `deposit(accountId, amount: number)` converts a plain decimal currency amount via `Math.round(amount * 100)` and writes it into `account.balance` and the `deposit.completed` event. `amount` is a plain identifier holding a user-supplied currency value, not a computed rate/fee product, so the rule's 'intentional business rounding' exception does not apply. Values such as 0.29 (0.29 * 100 === 28.999999999999996) round down and under-credit by one cent, corrupting both the stored balance and downstream event consumers. The same fix applies verbatim: import toCents from ./money and use `const cents = toCents(amount);`. No earlier guard or normalization handles this.\"}]}"
+}
